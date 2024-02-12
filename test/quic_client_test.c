@@ -38,7 +38,10 @@ static int test_quic_client(void)
     int c_connected = 0, c_write_done = 0, c_shutdown = 0;
     size_t l = 0, c_total_read = 0;
     OSSL_TIME start_time;
-    unsigned char alpn[] = { 8, 'h', 't', 't', 'p', '/', '0', '.', '9' };
+    unsigned char alpn[] = {
+        8, 'h', 't', 't', 'p', '/', '0', '.', '9',
+        8, 'h', 't', 't', 'p', '/', '1', '.', '0'
+    };
 
     ina.s_addr = htonl(0x7f000001UL);
 
