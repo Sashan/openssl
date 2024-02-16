@@ -573,6 +573,8 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
 /*
  * this is a new connection execution path. the retry packet must
  * be sent either here or somewhere further down.
+ *
+ * we can use port->tserver_ch to send retry packet/message to peer.
  */
     port_on_new_conn(port, &e->peer, &hdr.src_conn_id, &hdr.dst_conn_id,
                      &new_ch);
