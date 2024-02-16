@@ -570,6 +570,10 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
      * optimization inject this packet directly into the channel's QRX for
      * processing without going through the DEMUX again.
      */
+/*
+ * this is a new connection execution path. the retry packet must
+ * be sent either here or somewhere further down.
+ */
     port_on_new_conn(port, &e->peer, &hdr.src_conn_id, &hdr.dst_conn_id,
                      &new_ch);
     if (new_ch != NULL)
