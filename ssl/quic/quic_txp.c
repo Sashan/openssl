@@ -73,6 +73,7 @@ struct ossl_quic_tx_packetiser_st {
     unsigned int    want_max_streams_bidi   : 1;
     unsigned int    want_max_streams_uni    : 1;
 
+
     /* Internal state - frame (re)generation flags - per PN space. */
     unsigned int    want_ack                : QUIC_PN_SPACE_NUM;
     unsigned int    force_ack_eliciting     : QUIC_PN_SPACE_NUM;
@@ -86,6 +87,9 @@ struct ossl_quic_tx_packetiser_st {
 
     /* Has the handshake been completed? */
     unsigned int    handshake_complete      : 1;
+
+    /* set by server to generate retry packet */
+    unsigned int    want_conn_retry         : 1;
 
     OSSL_QUIC_FRAME_CONN_CLOSE  conn_close_frame;
 
@@ -3139,4 +3143,10 @@ OSSL_TIME ossl_quic_tx_packetiser_get_deadline(OSSL_QUIC_TX_PACKETISER *txp)
                                  txp->args.cc_method->get_wakeup_deadline(txp->args.cc_data));
 
     return deadline;
+}
+
+void ossl_quic_tx_packetiser_schedule_conn_retry(OSSL_QUIC_TX_PACKETISER *txp);
+{
+    if (txp->handshake_complete == 0)
+        txp->want_conn_retry = 1;
 }

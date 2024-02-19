@@ -3365,8 +3365,8 @@ int ossl_quic_channel_on_new_conn(QUIC_CHANNEL *ch, const BIO_ADDR *peer,
     if (!ossl_quic_lcidm_enrol_odcid(ch->lcidm, ch, &ch->init_dcid))
         return 0;
 
-    /* Change state. */
-    ch_record_state_transition(ch, QUIC_CHANNEL_STATE_ACTIVE);
+    ossl_quic_tx_packetiser_schedule_conn_retry(ch->txp);
+
     ch->doing_proactive_ver_neg = 0; /* not currently supported */
     return 1;
 }
