@@ -624,6 +624,9 @@ int ossl_quic_calculate_retry_integrity_tag(OSSL_LIB_CTX *libctx,
                                             const QUIC_CONN_ID *client_initial_dcid,
                                             unsigned char *tag);
 
+int ossl_quic_verify_retry_integrity_token(OSSL_LIB_CTX *libctx,
+                                           const char *propq,
+                                           QUIC_PKT_HDR *hdr);
 # endif
 
 #endif

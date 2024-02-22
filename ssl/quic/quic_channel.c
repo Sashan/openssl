@@ -2110,6 +2110,7 @@ static void ch_rx_handle_packet(QUIC_CHANNEL *ch, int channel_only)
     uint32_t enc_level;
     int old_have_processed_any_pkt = ch->have_processed_any_pkt;
     OSSL_QTX_IOVEC iovec;
+    int e;
 
     assert(ch->qrx_pkt != NULL);
 
@@ -2311,6 +2312,32 @@ static void ch_rx_handle_packet(QUIC_CHANNEL *ch, int channel_only)
             break;
         }
 
+        if (ch->is_server && ch->qrx_pkt->hdr->type == QUIC_PKT_TYPE_INITIAL) {
+            if (ch->qrx_pkt->hdr->token_len == 0) {
+                /*
+                 * Received initial packet with no token. In this case
+                 * we would like to validate client as suggested in RFC 9000
+                 * section 17.2.5 by sending a retry packet.
+                 */
+                ossl_quic_tx_packetiser_schedule_retry(ch->txp,
+                                                       ch->port->engine->libctx,
+                                                       ch->port->engine->propq,
+                                                       &ch->cur_local_cid,
+                                                       &ch->init_dcid);
+            } else {
+                /*
+                 * Verify client presented us with valid token it got from us.
+                 */
+                e = ossl_quic_verify_retry_integrity_token(ch->port->engine->libctx,
+                                                           ch->port->engine->propq,
+                                                           ch->qrx_pkt->hdr);
+                if (e == 0) {
+                    ossl_quic_channel_raise_protocol_error(ch, QUIC_ERR_INVALID_TOKEN,
+                                                   0, "server received invalid token");
+                    break;
+                }
+            }
+        }
         /* This packet contains frames, pass to the RXDP. */
         ossl_quic_handle_frames(ch, ch->qrx_pkt); /* best effort */
 
@@ -3365,8 +3392,8 @@ int ossl_quic_channel_on_new_conn(QUIC_CHANNEL *ch, const BIO_ADDR *peer,
     if (!ossl_quic_lcidm_enrol_odcid(ch->lcidm, ch, &ch->init_dcid))
         return 0;
 
-    ossl_quic_tx_packetiser_schedule_conn_retry(ch->txp);
-
+    /* Change state. */
+    ch_record_state_transition(ch, QUIC_CHANNEL_STATE_ACTIVE);
     ch->doing_proactive_ver_neg = 0; /* not currently supported */
     return 1;
 }

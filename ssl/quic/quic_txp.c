@@ -73,7 +73,6 @@ struct ossl_quic_tx_packetiser_st {
     unsigned int    want_max_streams_bidi   : 1;
     unsigned int    want_max_streams_uni    : 1;
 
-
     /* Internal state - frame (re)generation flags - per PN space. */
     unsigned int    want_ack                : QUIC_PN_SPACE_NUM;
     unsigned int    force_ack_eliciting     : QUIC_PN_SPACE_NUM;
@@ -89,7 +88,7 @@ struct ossl_quic_tx_packetiser_st {
     unsigned int    handshake_complete      : 1;
 
     /* set by server to generate retry packet */
-    unsigned int    want_conn_retry         : 1;
+    unsigned int    want_send_retry         : 1;
 
     OSSL_QUIC_FRAME_CONN_CLOSE  conn_close_frame;
 
@@ -401,6 +400,7 @@ struct archetype_data {
     unsigned int allow_padding              : 1;
     unsigned int require_ack_eliciting      : 1;
     unsigned int bypass_cc                  : 1;
+    unsigned int allow_retry                : 1;
 };
 
 struct txp_pkt_geom {
@@ -670,6 +670,50 @@ void ossl_quic_tx_packetiser_schedule_ack(OSSL_QUIC_TX_PACKETISER *txp,
                                           uint32_t pn_space)
 {
     txp->want_ack |= (1UL << pn_space);
+}
+
+static void ossl_quic_tx_packetiser_free_token(const unsigned char *token,
+                                               size_t token_len,
+                                               void *cb_arg)
+{
+    OPENSSL_free((void *)token);
+}
+
+void ossl_quic_tx_packetiser_schedule_retry(OSSL_QUIC_TX_PACKETISER *txp,
+                                            OSSL_LIB_CTX *libctx,
+                                            const char *propq,
+                                            QUIC_CONN_ID *cur_local_cid,
+                                            QUIC_CONN_ID *client_initial_dcid)
+{
+    QUIC_PKT_HDR hdr;
+    char *token, *integrity_tag;
+    size_t token_len = sizeof("openssltoken") + QUIC_RETRY_INTEGRITY_TAG_LEN - 1;
+    int e;
+
+    token = OPENSSL_malloc(token_len);
+    if (token == NULL)
+        return;
+    ossl_quic_tx_packetiser_set_initial_token(txp, token, token_len,
+                                              ossl_quic_tx_packetiser_free_token, NULL);
+
+    /* TODO: generate proper token */
+    memcpy(token, "openssltoken", sizeof("openssltoken") - 1);
+
+    /* we just append integrity tag to token */
+    integrity_tag = token + sizeof("openssltoken") - 1;
+    /* create pseudo header for inegrity tag calculation */
+    memset(&hdr, 0, sizeof(QUIC_PKT_HDR));
+    hdr.dst_conn_id = *cur_local_cid;
+    hdr.type = QUIC_PKT_TYPE_RETRY;
+    hdr.version = 1;
+    hdr.token = txp->initial_token;
+    hdr.token_len = txp->initial_token_len;
+    hdr.len = QUIC_RETRY_INTEGRITY_TAG_LEN;
+    hdr.data = integrity_tag;
+    e = ossl_quic_calculate_retry_integrity_tag(libctx, propq, &hdr,
+                                                client_initial_dcid,
+                                                integrity_tag);
+    txp->want_send_retry = e;
 }
 
 #define TXP_ERR_INTERNAL     0  /* Internal (e.g. alloc) error */
@@ -959,6 +1003,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_padding                   =*/ 1,
             /*require_ack_eliciting           =*/ 0,
             /*bypass_cc                       =*/ 0,
+            /*allow_retry                     =*/ 1,
         },
         /* EL 0(INITIAL) - Archetype 1(PROBE) */
         {
@@ -979,6 +1024,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_padding                   =*/ 1,
             /*require_ack_eliciting           =*/ 1,
             /*bypass_cc                       =*/ 1,
+            /*allow_retry                     =*/ 1,
         },
         /* EL 0(INITIAL) - Archetype 2(ACK_ONLY) */
         {
@@ -999,6 +1045,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_padding                   =*/ 0,
             /*require_ack_eliciting           =*/ 0,
             /*bypass_cc                       =*/ 1,
+            /*allow_retry                     =*/ 1,
         },
     },
     /* EL 1(HANDSHAKE) */
@@ -1022,6 +1069,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_padding                   =*/ 1,
             /*require_ack_eliciting           =*/ 0,
             /*bypass_cc                       =*/ 0,
+            /*allow_retry                     =*/ 0,
         },
         /* EL 1(HANDSHAKE) - Archetype 1(PROBE) */
         {
@@ -1042,6 +1090,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_padding                   =*/ 1,
             /*require_ack_eliciting           =*/ 1,
             /*bypass_cc                       =*/ 1,
+            /*allow_retry                     =*/ 0,
         },
         /* EL 1(HANDSHAKE) - Archetype 2(ACK_ONLY) */
         {
@@ -1062,6 +1111,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_padding                   =*/ 0,
             /*require_ack_eliciting           =*/ 0,
             /*bypass_cc                       =*/ 1,
+            /*allow_retry                     =*/ 0,
         },
     },
     /* EL 2(0RTT) */
@@ -1085,6 +1135,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_padding                   =*/ 1,
             /*require_ack_eliciting           =*/ 0,
             /*bypass_cc                       =*/ 0,
+            /*allow_retry                     =*/ 0,
         },
         /* EL 2(0RTT) - Archetype 1(PROBE) */
         {
@@ -1105,6 +1156,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_padding                   =*/ 1,
             /*require_ack_eliciting           =*/ 1,
             /*bypass_cc                       =*/ 1,
+            /*allow_retry                     =*/ 0,
         },
         /* EL 2(0RTT) - Archetype 2(ACK_ONLY) */
         {
@@ -1125,6 +1177,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_padding                   =*/ 0,
             /*require_ack_eliciting           =*/ 0,
             /*bypass_cc                       =*/ 1,
+            /*allow_retry                     =*/ 0,
         },
     },
     /* EL 3(1RTT) */
@@ -1148,6 +1201,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_padding                   =*/ 1,
             /*require_ack_eliciting           =*/ 0,
             /*bypass_cc                       =*/ 0,
+            /*allow_retry                     =*/ 0,
         },
         /* EL 3(1RTT) - Archetype 1(PROBE) */
         {
@@ -1168,6 +1222,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_padding                   =*/ 1,
             /*require_ack_eliciting           =*/ 1,
             /*bypass_cc                       =*/ 1,
+            /*allow_retry                     =*/ 0,
         },
         /* EL 3(1RTT) - Archetype 2(ACK_ONLY) */
         {
@@ -1188,6 +1243,7 @@ static const struct archetype_data archetypes[QUIC_ENC_LEVEL_NUM][TX_PACKETISER_
             /*allow_padding                   =*/ 0,
             /*require_ack_eliciting           =*/ 0,
             /*bypass_cc                       =*/ 1,
+            /*allow_retry                     =*/ 0,
         }
     }
 };
@@ -1220,6 +1276,11 @@ static int txp_determine_geometry(OSSL_QUIC_TX_PACKETISER *txp,
 
     /* Assemble packet header. */
     phdr->type          = ossl_quic_enc_level_to_pkt_type(enc_level);
+    /* fix type for retry packet */
+    if (txp->want_send_retry) {
+        phdr->type = QUIC_PKT_TYPE_RETRY;
+        txp->want_send_retry = 0;
+    }
     phdr->spin_bit      = 0;
     phdr->pn_len        = txp_determine_pn_len(txp);
     phdr->partial       = 0;
@@ -1254,6 +1315,9 @@ static int txp_determine_geometry(OSSL_QUIC_TX_PACKETISER *txp,
     if (enc_level == QUIC_ENC_LEVEL_INITIAL) {
         phdr->token     = txp->initial_token;
         phdr->token_len = txp->initial_token_len;
+        /* forget retry token we send with retry packet */
+        if (phdr->type == QUIC_PKT_TYPE_RETRY)
+            ossl_quic_tx_packetiser_set_initial_token(txp, NULL, 0, NULL, NULL);
     } else {
         phdr->token     = NULL;
         phdr->token_len = 0;
@@ -1395,6 +1459,10 @@ static int txp_should_try_staging(OSSL_QUIC_TX_PACKETISER *txp,
     /* Does the ACKM for this PN space want to produce anything? */
     if (a.allow_ack && (ossl_ackm_is_ack_desired(txp->args.ackm, pn_space)
                         || (txp->want_ack & (1UL << pn_space)) != 0))
+        return 1;
+
+    /* Are we asked to send RETRY packet to validate client? */
+    if (a.allow_retry && txp->want_send_retry)
         return 1;
 
     /* Do we need to force emission of an ACK-eliciting packet? */
@@ -3143,10 +3211,4 @@ OSSL_TIME ossl_quic_tx_packetiser_get_deadline(OSSL_QUIC_TX_PACKETISER *txp)
                                  txp->args.cc_method->get_wakeup_deadline(txp->args.cc_data));
 
     return deadline;
-}
-
-void ossl_quic_tx_packetiser_schedule_conn_retry(OSSL_QUIC_TX_PACKETISER *txp);
-{
-    if (txp->handshake_complete == 0)
-        txp->want_conn_retry = 1;
 }

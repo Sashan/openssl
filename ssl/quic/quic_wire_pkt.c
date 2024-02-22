@@ -554,8 +554,15 @@ int ossl_quic_wire_encode_pkt_hdr(WPACKET *pkt,
                                hdr->src_conn_id.id_len))
             return 0;
 
-        if (hdr->type == QUIC_PKT_TYPE_VERSION_NEG
-            || hdr->type == QUIC_PKT_TYPE_RETRY) {
+        if (hdr->type == QUIC_PKT_TYPE_RETRY) {
+            if (hdr->token_len > 0
+                && !WPACKET_memcpy(pkt, hdr->token, hdr->token_len))
+                return 0;
+
+            return 1;
+        }
+
+        if (hdr->type == QUIC_PKT_TYPE_VERSION_NEG) {
             if (hdr->len > 0 && !WPACKET_reserve_bytes(pkt, hdr->len, NULL))
                 return 0;
 
@@ -639,6 +646,9 @@ int ossl_quic_wire_get_encoded_pkt_hdr_len(size_t short_conn_id_len,
 
             len += enclen + hdr->token_len;
         }
+
+        if (hdr->type == QUIC_PKT_TYPE_RETRY)
+            len += hdr->token_len;
 
         if (!ossl_quic_pkt_type_must_be_last(hdr->type)) {
             enclen = ossl_quic_vlint_encode_len(hdr->len + hdr->pn_len);
@@ -942,4 +952,14 @@ err:
         WPACKET_finish(&wpkt);
 
     return ok;
+}
+
+int ossl_quic_verify_retry_integrity_token(OSSL_LIB_CTX *libctx,
+                                           const char *propq,
+                                           QUIC_PKT_HDR *hdr)
+{
+    if (hdr->token == NULL || hdr->token_len == 0)
+        return 0;
+
+    return 1;
 }

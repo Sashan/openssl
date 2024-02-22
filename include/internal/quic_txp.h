@@ -188,6 +188,15 @@ void ossl_quic_tx_packetiser_schedule_ack(OSSL_QUIC_TX_PACKETISER *txp,
 int ossl_quic_tx_packetiser_schedule_conn_close(OSSL_QUIC_TX_PACKETISER *txp,
                                                 const OSSL_QUIC_FRAME_CONN_CLOSE *f);
 
+/*
+ * Schedules transmission of RETRY packet to validate client's address.
+ */
+void ossl_quic_tx_packetiser_schedule_retry(OSSL_QUIC_TX_PACKETISER *txp,
+                                            OSSL_LIB_CTX *libctx,
+                                            const char *propq,
+                                            QUIC_CONN_ID *cur_local_cid,
+                                            QUIC_CONN_ID *client_initial_dcid);
+
 /* Setters for the msg_callback and msg_callback_arg */
 void ossl_quic_tx_packetiser_set_msg_callback(OSSL_QUIC_TX_PACKETISER *txp,
                                               ossl_msg_cb msg_callback,
