@@ -706,10 +706,8 @@ void ossl_quic_tx_packetiser_schedule_retry(OSSL_QUIC_TX_PACKETISER *txp,
     hdr.dst_conn_id = *cur_local_cid;
     hdr.type = QUIC_PKT_TYPE_RETRY;
     hdr.version = 1;
-    hdr.token = txp->initial_token;
-    hdr.token_len = txp->initial_token_len;
-    hdr.len = QUIC_RETRY_INTEGRITY_TAG_LEN;
-    hdr.data = integrity_tag;
+    hdr.len =  sizeof("openssltoken") + QUIC_RETRY_INTEGRITY_TAG_LEN - 1;
+    hdr.data = token;
     e = ossl_quic_calculate_retry_integrity_tag(libctx, propq, &hdr,
                                                 client_initial_dcid,
                                                 integrity_tag);
@@ -940,7 +938,12 @@ int ossl_quic_tx_packetiser_generate(OSSL_QUIC_TX_PACKETISER *txp,
             /* Did not attempt to generate a packet for this EL. */
             continue;
 
-        if (pkt[enc_level].h.bytes_appended == 0)
+        /*
+         * retry packets carry token only. token does not count as frame,
+         * it does not add to bytes we append.
+         */
+        if (pkt[enc_level].phdr.type != QUIC_PKT_TYPE_RETRY
+            && pkt[enc_level].h.bytes_appended == 0)
             /* Nothing was generated for this EL, so skip. */
             continue;
 
@@ -1315,9 +1318,6 @@ static int txp_determine_geometry(OSSL_QUIC_TX_PACKETISER *txp,
     if (enc_level == QUIC_ENC_LEVEL_INITIAL) {
         phdr->token     = txp->initial_token;
         phdr->token_len = txp->initial_token_len;
-        /* forget retry token we send with retry packet */
-        if (phdr->type == QUIC_PKT_TYPE_RETRY)
-            ossl_quic_tx_packetiser_set_initial_token(txp, NULL, 0, NULL, NULL);
     } else {
         phdr->token     = NULL;
         phdr->token_len = 0;
@@ -1887,6 +1887,11 @@ static int txp_generate_pre_token(OSSL_QUIC_TX_PACKETISER *txp,
     const OSSL_QUIC_FRAME_ACK *ack;
     OSSL_QUIC_FRAME_ACK ack2;
 
+
+    /* retry packet should carry token only */
+    if (pkt->phdr.type == QUIC_PKT_TYPE_RETRY)
+        return 1;
+
     tpkt->ackm_pkt.largest_acked = QUIC_PN_INVALID;
 
     /* ACK Frames (Regenerate) */
@@ -2106,6 +2111,18 @@ static int txp_generate_crypto_frames(OSSL_QUIC_TX_PACKETISER *txp,
     WPACKET *wpkt;
     QUIC_TXPIM_CHUNK chunk = {0};
     size_t i, space_left;
+
+    /* this is a hack. but I could not figure out the right way to do it.
+     * I feel the right way is as follows:
+     *    if server's rx-channel side decides it needs to validate remote
+     *    address, then it schedules to transmit retry packet with
+     *    validation token
+     *
+     *    to send retry packet we don't need to set up any secrets and such
+     *    unfortunately it's not the case. hence the workaround here.
+     */
+    if (pkt->phdr.type == QUIC_PKT_TYPE_RETRY)
+        return 1;
 
     for (i = 0;; ++i) {
         space_left = tx_helper_get_space_left(h);
@@ -2955,7 +2972,7 @@ static int txp_pkt_commit(OSSL_QUIC_TX_PACKETISER *txp,
     *txpim_pkt_reffed = 0;
 
     /* Cannot send a packet with an empty payload. */
-    if (pkt->h.bytes_appended == 0)
+    if (pkt->phdr.type != QUIC_PKT_TYPE_RETRY && pkt->h.bytes_appended == 0)
         return 0;
 
     if (!txp_get_archetype_data(enc_level, archetype, &a))

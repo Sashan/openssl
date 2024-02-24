@@ -2336,6 +2336,23 @@ static void ch_rx_handle_packet(QUIC_CHANNEL *ch, int channel_only)
                                                    0, "server received invalid token");
                     break;
                 }
+#if 0
+/* I think we should set up initial secrets after we validate client.
+ * however if I move chunk below from ossl_quic_channel_on_new_conn()
+ * things stop to work completely.
+ */
+
+                /* We send retry packet first. we set initial secret after succesfful
+                 * validation of initial token
+                 */
+                /* Plug in secrets for the Initial EL. */
+                if (!ossl_quic_provide_initial_secret(ch->port->engine->libctx,
+                                                      ch->port->engine->propq,
+                                                      &ch->init_dcid,
+                                                      /*is_server=*/1,
+                                                      ch->qrx, ch->qtx))
+                    break;	/* XXX: shall we raise internal error? */
+#endif
             }
         }
         /* This packet contains frames, pass to the RXDP. */
@@ -3380,7 +3397,7 @@ int ossl_quic_channel_on_new_conn(QUIC_CHANNEL *ch, const BIO_ADDR *peer,
     ossl_qtx_set0_qlog(ch->qtx, ch_get_qlog(ch));
     ossl_quic_tx_packetiser_set0_qlog(ch->txp, ch_get_qlog(ch));
 
-    /* Plug in secrets for the Initial EL. */
+/* XXX this seems needed, otherwise it stops to work completely */
     if (!ossl_quic_provide_initial_secret(ch->port->engine->libctx,
                                           ch->port->engine->propq,
                                           &ch->init_dcid,

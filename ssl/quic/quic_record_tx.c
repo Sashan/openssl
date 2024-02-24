@@ -471,6 +471,16 @@ static int qtx_write_hdr(OSSL_QTX *qtx, const QUIC_PKT_HDR *hdr, TXE *txe,
     }
     WPACKET_finish(&wpkt);
 
+#if 0
+    /*
+     * Forget token as soon we put it to packet. I have not idea how to do it
+     * at the moment, because I don't know how to reach for packetiser (txp).
+     */
+    if (hdr.type == QUIC_PKT_TYPE_RETRY)
+        ossl_quic_tx_packetiser_set_initial_token(txp, NULL, 0, NULL, NULL);
+#endif
+
+
     if (qtx->msg_callback != NULL)
         qtx->msg_callback(1, OSSL_QUIC1_VERSION, SSL3_RT_QUIC_PACKET, data, l,
                           qtx->msg_callback_ssl, qtx->msg_callback_arg);
@@ -633,7 +643,8 @@ static int qtx_write(OSSL_QTX *qtx, const OSSL_QTX_PKT *pkt, TXE *txe,
     /* Walk the iovecs to determine actual input payload length. */
     iovec_cur_init(&cur, iovec, num_iovec);
 
-    if (cur.bytes_remaining == 0) {
+    if (hdr->type != QUIC_PKT_TYPE_RETRY
+        && cur.bytes_remaining == 0) {
         /* No zero-length payloads allowed. */
         ret = QTX_FAIL_GENERIC;
         goto err;
