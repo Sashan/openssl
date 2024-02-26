@@ -703,10 +703,13 @@ void ossl_quic_tx_packetiser_schedule_retry(OSSL_QUIC_TX_PACKETISER *txp,
     integrity_tag = token + sizeof("openssltoken") - 1;
     /* create pseudo header for inegrity tag calculation */
     memset(&hdr, 0, sizeof(QUIC_PKT_HDR));
-    hdr.dst_conn_id = *cur_local_cid;
+    hdr.src_conn_id = *cur_local_cid;
     hdr.type = QUIC_PKT_TYPE_RETRY;
+    hdr.fixed = 1;
     hdr.version = 1;
-    hdr.len =  sizeof("openssltoken") + QUIC_RETRY_INTEGRITY_TAG_LEN - 1;
+    hdr.token = token;
+    hdr.token_len = sizeof("openssltoken") - 1;
+    hdr.len =  QUIC_RETRY_INTEGRITY_TAG_LEN;
     hdr.data = token;
     e = ossl_quic_calculate_retry_integrity_tag(libctx, propq, &hdr,
                                                 client_initial_dcid,
@@ -817,8 +820,11 @@ int ossl_quic_tx_packetiser_generate(OSSL_QUIC_TX_PACKETISER *txp,
 
     for (enc_level = QUIC_ENC_LEVEL_INITIAL;
          enc_level < QUIC_ENC_LEVEL_NUM;
-         ++enc_level)
+         ++enc_level) {
         pkt[enc_level].h_valid = 0;
+        /* zero-out phdr so we can calculate correct integrity in retry packet */
+        memset(&pkt[enc_level].phdr, 0, sizeof(pkt[enc_level].phdr));
+    }
 
     memset(status, 0, sizeof(*status));
 
