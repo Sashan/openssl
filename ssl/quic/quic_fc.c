@@ -26,8 +26,14 @@ int ossl_quic_txfc_init(QUIC_TXFC *txfc, QUIC_TXFC *conn_txfc)
         return 0;
 
     txfc->swm                   = 0;
-    txfc->cwm                   = 0;
+    txfc->cwm[0]                = 3 * 1200;
+    txfc->cwm[1]                = 0;
     txfc->parent                = conn_txfc;
+    /*
+     * Amplification limit applies to connection flows (parents).
+     */
+    if (conn_txfc != NULL)
+        txfc->remote_validated = 1;
     txfc->has_become_blocked    = 0;
     return 1;
 }
@@ -39,17 +45,17 @@ QUIC_TXFC *ossl_quic_txfc_get_parent(QUIC_TXFC *txfc)
 
 int ossl_quic_txfc_bump_cwm(QUIC_TXFC *txfc, uint64_t cwm)
 {
-    if (cwm <= txfc->cwm)
+    if (cwm <= txfc->cwm[1])
         return 0;
 
-    txfc->cwm = cwm;
+    txfc->cwm[1] = cwm;
     return 1;
 }
 
 uint64_t ossl_quic_txfc_get_credit_local(QUIC_TXFC *txfc, uint64_t consumed)
 {
-    assert((txfc->swm + consumed) <= txfc->cwm);
-    return txfc->cwm - (consumed + txfc->swm);
+    assert((txfc->swm + consumed) <= txfc->cwm[txfc->remote_validated]);
+    return txfc->cwm[txfc->remote_validated] - (consumed + txfc->swm);
 }
 
 uint64_t ossl_quic_txfc_get_credit(QUIC_TXFC *txfc, uint64_t consumed)
@@ -110,12 +116,20 @@ int ossl_quic_txfc_has_become_blocked(QUIC_TXFC *txfc, int clear)
 
 uint64_t ossl_quic_txfc_get_cwm(QUIC_TXFC *txfc)
 {
-    return txfc->cwm;
+    return txfc->cwm[txfc->remote_validated];
 }
 
 uint64_t ossl_quic_txfc_get_swm(QUIC_TXFC *txfc)
 {
     return txfc->swm;
+}
+
+void ossl_quic_txfc_handshake_done(QUIC_TXFC *txfc)
+{
+    txfc->remote_validated = 1;
+    assert(txfc->cwm[0] <= (3 * 1200));
+    /* carry consumed credit to credit we got from client hello */
+    txfc->cwm[1] -= (3 * 1200) - txfc->cwm[0];
 }
 
 /*

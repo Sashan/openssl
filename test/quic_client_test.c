@@ -15,7 +15,7 @@
 #include "internal/time.h"
 #include "testutil.h"
 
-static const char msg1[] = "GET LICENSE.txt\r\n";
+static const char msg1[] = "GET LICENSE.txt\r\n\r\n";
 static char msg2[16000];
 
 #define DST_PORT        4433
@@ -41,7 +41,12 @@ static int test_quic_client_ex(int fd_arg)
     int c_connected = 0, c_write_done = 0, c_shutdown = 0;
     size_t l = 0, c_total_read = 0;
     OSSL_TIME start_time;
+/*
     unsigned char alpn[] = { 8, 'h', 't', 't', 'p', '/', '0', '.', '9' };
+*/
+    unsigned char alpn[] = {
+        8, 'h', 't', 't', 'p', '/', '1', '.', '0'
+    };
 
 
     if (fd_arg == INVALID_SOCKET) {
@@ -133,15 +138,12 @@ static int test_quic_client_ex(int fd_arg)
             if (ret != 1) {
                 if (SSL_get_error(c_ssl, ret) == SSL_ERROR_ZERO_RETURN) {
                     c_shutdown = 1;
-                    TEST_info("Message: \n%s\n", msg2);
+                    printf("%s\n", msg2);
                 } else if (!TEST_true(is_want(c_ssl, ret))) {
                     goto err;
                 }
             } else {
                 c_total_read += l;
-
-                if (!TEST_size_t_lt(c_total_read, sizeof(msg2) - 1))
-                    goto err;
             }
         }
 

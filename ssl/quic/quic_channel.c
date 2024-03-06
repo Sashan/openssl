@@ -208,6 +208,12 @@ static int ch_init(QUIC_CHANNEL *ch)
         goto err;
 
     /*
+     * we call 'handshake_done()' on client connection channel to disable
+     * anti-amplification limit.
+     */
+    if (!ch->is_server)
+        ossl_quic_txfc_handshake_done(&ch->conn_txfc);
+    /*
      * Note: The TP we transmit governs what the peer can transmit and thus
      * applies to the RXFC.
      */
@@ -1055,6 +1061,7 @@ static int ch_on_handshake_complete(void *arg)
          * On the server, the handshake is confirmed as soon as it is complete.
          */
         ossl_quic_channel_on_handshake_confirmed(ch);
+        ossl_quic_txfc_handshake_done(&ch->conn_txfc);
 
         ossl_quic_tx_packetiser_schedule_handshake_done(ch->txp);
     }
