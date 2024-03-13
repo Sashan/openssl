@@ -25,10 +25,10 @@ typedef struct quic_txfc_st QUIC_TXFC;
 
 struct quic_txfc_st {
     QUIC_TXFC   *parent; /* stream-level iff non-NULL */
-    uint64_t    swm;
-    uint64_t    cwm[2];
+    uint64_t   swm;
+    uint64_t   cwm[2];
     int        has_become_blocked:1;
-    int        remote_validated:1;
+    unsigned char remote_validated;
 };
 
 /*
