@@ -693,8 +693,10 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
      */
     port_on_new_conn(port, &e->peer, &hdr.src_conn_id, &hdr.dst_conn_id,
                      &new_ch);
-    if (new_ch != NULL)
+    if (new_ch != NULL) {
+        ossl_quic_txfc_bump_alimit(&new_ch->conn_txfc, e->data_len);
         ossl_qrx_inject_urxe(new_ch->qrx, e);
+    }
 
     return;
 

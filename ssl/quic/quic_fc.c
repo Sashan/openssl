@@ -26,8 +26,8 @@ int ossl_quic_txfc_init(QUIC_TXFC *txfc, QUIC_TXFC *conn_txfc)
         return 0;
 
     txfc->swm                   = 0;
-    txfc->cwm[0]                = 3 * 1200;
-    txfc->cwm[1]                = 0;
+    txfc->cwm                   = 0;
+    txfc->alimit                = 0;
     txfc->parent                = conn_txfc;
     /*
      * Amplification limit applies to connection flows (parents).
@@ -45,17 +45,29 @@ QUIC_TXFC *ossl_quic_txfc_get_parent(QUIC_TXFC *txfc)
 
 int ossl_quic_txfc_bump_cwm(QUIC_TXFC *txfc, uint64_t cwm)
 {
-    if (cwm <= txfc->cwm[1])
+    if (cwm <= txfc->cwm)
         return 0;
 
-    txfc->cwm[1] = cwm;
+    txfc->cwm = cwm;
     return 1;
+}
+
+void ossl_quic_txfc_bump_alimit(QUIC_TXFC *txfc, uint64_t rcvd)
+{
+    txfc->alimit += rcvd * 3;
 }
 
 uint64_t ossl_quic_txfc_get_credit_local(QUIC_TXFC *txfc, uint64_t consumed)
 {
-    assert((txfc->swm + consumed) <= txfc->cwm[txfc->remote_validated]);
-    return txfc->cwm[txfc->remote_validated] - (consumed + txfc->swm);
+    if (!txfc->remote_validated) {
+        if (consumed > txfc->alimit)
+            return txfc->alimit;
+        else
+            return txfc->alimit - consumed;
+    } else {
+        assert((txfc->swm + consumed) <= txfc->cwm);
+        return txfc->cwm - (consumed + txfc->swm);
+    }
 }
 
 uint64_t ossl_quic_txfc_get_credit(QUIC_TXFC *txfc, uint64_t consumed)
@@ -87,7 +99,13 @@ int ossl_quic_txfc_consume_credit_local(QUIC_TXFC *txfc, uint64_t num_bytes)
     if (num_bytes > 0 && num_bytes == credit)
         txfc->has_become_blocked = 1;
 
-    txfc->swm += num_bytes;
+    if (!txfc->remote_validated) {
+        assert(txfc->alimit >= num_bytes);
+        txfc->alimit -= num_bytes;
+    } else {
+        txfc->swm += num_bytes;
+    }
+
     return ok;
 }
 
@@ -116,7 +134,7 @@ int ossl_quic_txfc_has_become_blocked(QUIC_TXFC *txfc, int clear)
 
 uint64_t ossl_quic_txfc_get_cwm(QUIC_TXFC *txfc)
 {
-    return txfc->cwm[txfc->remote_validated];
+    return txfc->cwm;
 }
 
 uint64_t ossl_quic_txfc_get_swm(QUIC_TXFC *txfc)
@@ -127,9 +145,6 @@ uint64_t ossl_quic_txfc_get_swm(QUIC_TXFC *txfc)
 void ossl_quic_txfc_handshake_done(QUIC_TXFC *txfc)
 {
     txfc->remote_validated = 1;
-    assert(txfc->cwm[0] <= (3 * 1200));
-    /* carry consumed credit to credit we got from client hello */
-    txfc->cwm[1] -= (3 * 1200) - txfc->cwm[0];
 }
 
 /*

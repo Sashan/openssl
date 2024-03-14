@@ -64,7 +64,7 @@ IF[{- !$disabled{tests} -}]
           ca_internals_test bio_tfo_test membio_test bio_dgram_test list_test \
           fips_version_test x509_test hpke_test pairwise_fail_test \
           nodefltctxtest evp_xof_test x509_load_cert_file_test bio_meth_test \
-          x509_acert_test
+          x509_acert_test quic_rtt_test
 
   IF[{- !$disabled{'rpk'} -}]
     PROGRAMS{noinst}=rpktest
@@ -1201,6 +1201,7 @@ ENDIF
     PROGRAMS{noinst}=quic_fifd_test quic_txp_test quic_tserver_test
     PROGRAMS{noinst}=quic_client_test quic_cc_test quic_multistream_test
     PROGRAMS{noinst}=quic_radix_test
+    PROGRAMS{noinst}=quic_rtt_test
 
     SOURCE[quic_ackm_test]=quic_ackm_test.c cc_dummy.c
     INCLUDE[quic_ackm_test]=../include ../apps/include
@@ -1218,6 +1219,10 @@ ENDIF
   SOURCE[x509_acert_test]=x509_acert_test.c
   INCLUDE[x509_acert_test]=../include ../apps/include
   DEPEND[x509_acert_test]=../libcrypto libtestutil.a
+
+  SOURCE[quic_rtt_test]=quic_rtt_test.c helpers/ssltestlib.c
+  INCLUDE[quic_rtt_test]=../include ../apps/include ..
+  DEPEND[quic_rtt_test]=../libcrypto.a ../libssl.a libtestutil.a
 
 {-
    use File::Spec::Functions;

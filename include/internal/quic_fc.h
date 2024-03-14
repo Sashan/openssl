@@ -25,10 +25,9 @@ typedef struct quic_txfc_st QUIC_TXFC;
 
 struct quic_txfc_st {
     QUIC_TXFC   *parent; /* stream-level iff non-NULL */
-    uint64_t   swm;
-    uint64_t   cwm[2];
-    int        has_become_blocked:1;
-    unsigned char remote_validated;
+    uint64_t    swm, cwm, alimit;
+    int         has_become_blocked:1;
+    int         remote_validated:1;
 };
 
 /*
@@ -125,6 +124,11 @@ uint64_t ossl_quic_txfc_get_swm(QUIC_TXFC *txfc);
  * Notify TXFC handshake is complete.
  */
 void ossl_quic_txfc_handshake_done(QUIC_TXFC *txfc);
+
+/*
+ * Bump aplmification limit by number of received bytes.
+ */
+void ossl_quic_txfc_bump_alimit(QUIC_TXFC *txfc, uint64_t rcvd);
 
 /*
  * RX Flow Controller (RXFC)
