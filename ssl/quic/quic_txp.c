@@ -560,6 +560,14 @@ static int txp_check_token_len(size_t token_len, size_t mdpl)
     return 1;
 }
 
+static uint64_t txp_get_tx_allowance(OSSL_QUIC_TX_PACKETISER *txp)
+{
+    if (txp->args.conn_txfc->remote_validated)
+        return txp->args.cc_method->get_tx_allowance(txp->args.cc_data);
+
+    return ossl_quic_txfc_get_credit(txp->args.conn_txfc, 0);
+}
+
 int ossl_quic_tx_packetiser_set_initial_token(OSSL_QUIC_TX_PACKETISER *txp,
                                               const unsigned char *token,
                                               size_t token_len,
@@ -769,7 +777,7 @@ int ossl_quic_tx_packetiser_generate(OSSL_QUIC_TX_PACKETISER *txp,
     uint32_t conn_close_enc_level = QUIC_ENC_LEVEL_NUM;
     struct txp_pkt pkt[QUIC_ENC_LEVEL_NUM];
     size_t pkts_done = 0;
-    uint64_t cc_limit = txp->args.cc_method->get_tx_allowance(txp->args.cc_data);
+    uint64_t cc_limit = txp_get_tx_allowance(txp);
     int need_padding = 0, txpim_pkt_reffed;
 
     for (enc_level = QUIC_ENC_LEVEL_INITIAL;
@@ -897,6 +905,9 @@ int ossl_quic_tx_packetiser_generate(OSSL_QUIC_TX_PACKETISER *txp,
 
         if (pkt[enc_level].h.bytes_appended == 0)
             /* Nothing was generated for this EL, so skip. */
+            continue;
+
+        if (!ossl_quic_txfc_consume_credit(txp->args.conn_txfc, pkt[enc_level].h.bytes_appended))
             continue;
 
         rc = txp_pkt_commit(txp, &pkt[enc_level], archetype,
@@ -3147,7 +3158,7 @@ OSSL_TIME ossl_quic_tx_packetiser_get_deadline(OSSL_QUIC_TX_PACKETISER *txp)
         }
 
     /* When will CC let us send more? */
-    if (txp->args.cc_method->get_tx_allowance(txp->args.cc_data) == 0)
+    if (txp_get_tx_allowance(txp) == 0)
         deadline = ossl_time_min(deadline,
                                  txp->args.cc_method->get_wakeup_deadline(txp->args.cc_data));
 

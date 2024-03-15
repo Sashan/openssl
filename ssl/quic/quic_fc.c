@@ -100,8 +100,10 @@ int ossl_quic_txfc_consume_credit_local(QUIC_TXFC *txfc, uint64_t num_bytes)
         txfc->has_become_blocked = 1;
 
     if (!txfc->remote_validated) {
-        assert(txfc->alimit >= num_bytes);
-        txfc->alimit -= num_bytes;
+        if (txfc->alimit < num_bytes)
+            txfc->alimit -= num_bytes;
+        else
+            ok = 0;
     } else {
         txfc->swm += num_bytes;
     }

@@ -637,6 +637,7 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
         && ossl_quic_lcidm_lookup(port->lcidm, dcid, NULL,
                                   (void **)&ch)) {
         assert(ch != NULL);
+        ossl_quic_txfc_bump_alimit(&ch->conn_txfc, e->data_len);
         ossl_quic_channel_inject(ch, e);
         return;
     }
