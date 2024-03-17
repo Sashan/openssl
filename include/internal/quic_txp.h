@@ -61,6 +61,8 @@ typedef struct ossl_quic_tx_packetiser_args_st {
      */
     QUIC_SSTREAM    *crypto[QUIC_PN_SPACE_NUM];
 
+    int             is_server:1;
+
  } OSSL_QUIC_TX_PACKETISER_ARGS;
 
 OSSL_QUIC_TX_PACKETISER *ossl_quic_tx_packetiser_new(const OSSL_QUIC_TX_PACKETISER_ARGS *args);

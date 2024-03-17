@@ -20,7 +20,7 @@ OSSL_SAFE_MATH_UNSIGNED(uint64_t, uint64_t)
  * =========================
  */
 
-int ossl_quic_txfc_init(QUIC_TXFC *txfc, QUIC_TXFC *conn_txfc)
+int ossl_quic_txfc_init(QUIC_TXFC *txfc, QUIC_TXFC *conn_txfc, int is_server)
 {
     if (conn_txfc != NULL && conn_txfc->parent != NULL)
         return 0;
@@ -30,10 +30,14 @@ int ossl_quic_txfc_init(QUIC_TXFC *txfc, QUIC_TXFC *conn_txfc)
     txfc->alimit                = 0;
     txfc->parent                = conn_txfc;
     /*
-     * Amplification limit applies to connection flows (parents).
+     * Amplification limit applies to connection flows (parents) only.
      */
     if (conn_txfc != NULL)
         txfc->remote_validated = 1;
+    else
+        txfc->remote_validated = 0;
+
+    txfc->is_server = is_server;
     txfc->has_become_blocked    = 0;
     return 1;
 }
@@ -54,20 +58,36 @@ int ossl_quic_txfc_bump_cwm(QUIC_TXFC *txfc, uint64_t cwm)
 
 void ossl_quic_txfc_bump_alimit(QUIC_TXFC *txfc, uint64_t rcvd)
 {
-    txfc->alimit += rcvd * 3;
+    if (txfc->is_server && !txfc->remote_validated)
+        txfc->alimit += rcvd * 3;
+}
+
+int ossl_quic_txfc_chk_alimit(QUIC_TXFC *txfc, uint64_t dgram_len)
+{
+    int ok = 1;
+
+    if (txfc->is_server && !txfc->remote_validated) {
+        if (dgram_len > txfc->alimit)
+            ok = 0;
+        else
+            txfc->alimit -= dgram_len;
+    }
+
+    return (ok);
+}
+
+uint64_t ossl_quic_txfc_get_alimit(QUIC_TXFC *txfc)
+{
+     if (txfc->is_server && !txfc->remote_validated)
+         return txfc->alimit;
+     else
+         return (uint64_t)-1;
 }
 
 uint64_t ossl_quic_txfc_get_credit_local(QUIC_TXFC *txfc, uint64_t consumed)
 {
-    if (!txfc->remote_validated) {
-        if (consumed > txfc->alimit)
-            return txfc->alimit;
-        else
-            return txfc->alimit - consumed;
-    } else {
-        assert((txfc->swm + consumed) <= txfc->cwm);
-        return txfc->cwm - (consumed + txfc->swm);
-    }
+    assert((txfc->swm + consumed) <= txfc->cwm);
+    return txfc->cwm - (consumed + txfc->swm);
 }
 
 uint64_t ossl_quic_txfc_get_credit(QUIC_TXFC *txfc, uint64_t consumed)
@@ -99,15 +119,7 @@ int ossl_quic_txfc_consume_credit_local(QUIC_TXFC *txfc, uint64_t num_bytes)
     if (num_bytes > 0 && num_bytes == credit)
         txfc->has_become_blocked = 1;
 
-    if (!txfc->remote_validated) {
-        if (txfc->alimit < num_bytes)
-            txfc->alimit -= num_bytes;
-        else
-            ok = 0;
-    } else {
-        txfc->swm += num_bytes;
-    }
-
+    txfc->swm += num_bytes;
     return ok;
 }
 

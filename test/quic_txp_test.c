@@ -142,7 +142,7 @@ static int helper_init(struct helper *h)
     if (!TEST_ptr(h->args.cfq = ossl_quic_cfq_new()))
         goto err;
 
-    if (!TEST_true(ossl_quic_txfc_init(&h->conn_txfc, NULL)))
+    if (!TEST_true(ossl_quic_txfc_init(&h->conn_txfc, NULL, 0)))
         goto err;
 
     if (!TEST_true(ossl_quic_rxfc_init(&h->conn_rxfc, NULL,
@@ -1489,7 +1489,7 @@ static int run_script(int script_idx, const struct script_op *script)
                     goto err;
 
                 if (!TEST_ptr(s->sstream = ossl_quic_sstream_new(512 * 1024))
-                    || !TEST_true(ossl_quic_txfc_init(&s->txfc, &h.conn_txfc))
+                    || !TEST_true(ossl_quic_txfc_init(&s->txfc, &h.conn_txfc, 0 /* is_server */))
                     || !TEST_true(ossl_quic_rxfc_init(&s->rxfc, &h.conn_rxfc,
                                                       1 * 1024 * 1024,
                                                       16 * 1024 * 1024,

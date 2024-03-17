@@ -204,15 +204,9 @@ static int ch_init(QUIC_CHANNEL *ch)
     if (ch->cfq == NULL)
         goto err;
 
-    if (!ossl_quic_txfc_init(&ch->conn_txfc, NULL))
+    if (!ossl_quic_txfc_init(&ch->conn_txfc, NULL, ch->is_server))
         goto err;
 
-    /*
-     * we call 'handshake_done()' on client connection channel to disable
-     * anti-amplification limit.
-     */
-    if (!ch->is_server)
-        ossl_quic_txfc_handshake_done(&ch->conn_txfc);
     /*
      * Note: The TP we transmit governs what the peer can transmit and thus
      * applies to the RXFC.
@@ -286,6 +280,7 @@ static int ch_init(QUIC_CHANNEL *ch)
     txp_args.now_arg                = ch;
     txp_args.get_qlog_cb            = ch_get_qlog_cb;
     txp_args.get_qlog_cb_arg        = ch;
+    txp_args.is_server              = ch->is_server;
 
     for (pn_space = QUIC_PN_SPACE_INITIAL; pn_space < QUIC_PN_SPACE_NUM; ++pn_space) {
         ch->crypto_send[pn_space] = ossl_quic_sstream_new(INIT_CRYPTO_SEND_BUF_LEN);
@@ -3421,7 +3416,7 @@ static int ch_init_new_stream(QUIC_CHANNEL *ch, QUIC_STREAM *qs,
             goto err;
 
     /* TXFC */
-    if (!ossl_quic_txfc_init(&qs->txfc, &ch->conn_txfc))
+    if (!ossl_quic_txfc_init(&qs->txfc, &ch->conn_txfc, ch->is_server))
         goto err;
 
     if (ch->got_remote_transport_params) {

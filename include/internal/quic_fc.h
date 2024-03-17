@@ -28,6 +28,7 @@ struct quic_txfc_st {
     uint64_t    swm, cwm, alimit;
     int         has_become_blocked:1;
     int         remote_validated:1;
+    int         is_server:1;
 };
 
 /*
@@ -35,7 +36,7 @@ struct quic_txfc_st {
  * the connection-level flow controller if the TXFC is for stream-level flow
  * control, and NULL otherwise.
  */
-int ossl_quic_txfc_init(QUIC_TXFC *txfc, QUIC_TXFC *conn_txfc);
+int ossl_quic_txfc_init(QUIC_TXFC *txfc, QUIC_TXFC *conn_txfc, int is_server);
 
 /*
  * Gets the parent (i.e., connection-level) TX flow controller. Returns NULL if
@@ -129,6 +130,8 @@ void ossl_quic_txfc_handshake_done(QUIC_TXFC *txfc);
  * Bump aplmification limit by number of received bytes.
  */
 void ossl_quic_txfc_bump_alimit(QUIC_TXFC *txfc, uint64_t rcvd);
+int ossl_quic_txfc_chk_alimit(QUIC_TXFC *txfc, uint64_t dgram_len);
+uint64_t ossl_quic_txfc_get_alimit(QUIC_TXFC *txfc);
 
 /*
  * RX Flow Controller (RXFC)

@@ -16,10 +16,10 @@ static int test_txfc(int is_stream)
     int testresult = 0;
     QUIC_TXFC conn_txfc, stream_txfc, *txfc, *parent_txfc;
 
-    if (!TEST_true(ossl_quic_txfc_init(&conn_txfc, 0)))
+    if (!TEST_true(ossl_quic_txfc_init(&conn_txfc, 0, 0 /* is_server */)))
         goto err;
 
-    if (is_stream && !TEST_true(ossl_quic_txfc_init(&stream_txfc, &conn_txfc)))
+    if (is_stream && !TEST_true(ossl_quic_txfc_init(&stream_txfc, &conn_txfc, 0 /* is_server */)))
         goto err;
 
     txfc = is_stream ? &stream_txfc : &conn_txfc;
