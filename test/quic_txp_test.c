@@ -119,7 +119,7 @@ static void demux_default_handler(QUIC_URXE *e, void *arg,
     ossl_qrx_inject_urxe(h->qrx, e);
 }
 
-static int helper_init(struct helper *h)
+static int helper_init(struct helper *h, int is_server)
 {
     int rc = 0;
     size_t i;
@@ -142,7 +142,7 @@ static int helper_init(struct helper *h)
     if (!TEST_ptr(h->args.cfq = ossl_quic_cfq_new()))
         goto err;
 
-    if (!TEST_true(ossl_quic_txfc_init(&h->conn_txfc, NULL, 0)))
+    if (!TEST_true(ossl_quic_txfc_init(&h->conn_txfc, NULL, is_server)))
         goto err;
 
     if (!TEST_true(ossl_quic_rxfc_init(&h->conn_rxfc, NULL,
@@ -1288,7 +1288,7 @@ static void skip_padding(struct helper *h)
         ossl_quic_wire_decode_padding(&h->pkt);
 }
 
-static int run_script(int script_idx, const struct script_op *script)
+static int run_script(int script_idx, const struct script_op *script, int is_server)
 {
     int testresult = 0, have_helper = 0;
     QUIC_TXP_STATUS status;
@@ -1296,7 +1296,7 @@ static int run_script(int script_idx, const struct script_op *script)
     const struct script_op *op;
     size_t opn = 0;
 
-    if (!helper_init(&h))
+    if (!helper_init(&h, is_server))
         goto err;
 
     have_helper = 1;
@@ -1607,9 +1607,14 @@ err:
     return testresult;
 }
 
-static int test_script(int idx)
+static int test_script_as_client(int idx)
 {
-    return run_script(idx, scripts[idx]);
+    return run_script(idx, scripts[idx], 0);
+}
+
+static int test_script_as_server(int idx)
+{
+    return run_script(idx, scripts[idx], 1);
 }
 
 /*
@@ -1669,7 +1674,7 @@ static const size_t dyn_script_1_pkt_idx        = 9;
 static const size_t dyn_script_1_check_idx      = 10;
 static const size_t dyn_script_1_start_from     = 1000;
 
-static int test_dyn_script_1(int idx)
+static int test_dyn_script_1(int idx, int is_server)
 {
     size_t target_size = dyn_script_1_start_from + (size_t)idx;
     int expect_handshake_pkt_in_same_dgram = (target_size <= 1115);
@@ -1685,7 +1690,7 @@ static int test_dyn_script_1(int idx)
         dyn_script_1[dyn_script_1_check_idx].opcode     = OPK_NOP;
     }
 
-    if (!run_script(idx, dyn_script_1)) {
+    if (!run_script(idx, dyn_script_1, is_server)) {
         TEST_error("failed dyn script 1 with target size %zu", target_size);
         return 0;
     }
@@ -1693,10 +1698,24 @@ static int test_dyn_script_1(int idx)
     return 1;
 }
 
+static int test_dyn_script_1_as_client(int idx)
+{
+    return test_dyn_script_1(idx, 0);
+}
+
+static int test_dyn_script_1_as_server(int idx)
+{
+    return test_dyn_script_1(idx, 1);
+}
+
 int setup_tests(void)
 {
-    ADD_ALL_TESTS(test_script, OSSL_NELEM(scripts));
-    ADD_ALL_TESTS(test_dyn_script_1,
+    ADD_ALL_TESTS(test_script_as_client, OSSL_NELEM(scripts));
+    ADD_ALL_TESTS(test_script_as_server, OSSL_NELEM(scripts));
+    ADD_ALL_TESTS(test_dyn_script_1_as_client,
+                  OSSL_NELEM(dyn_script_1_crypto_1a)
+                  - dyn_script_1_start_from + 1);
+    ADD_ALL_TESTS(test_dyn_script_1_as_server,
                   OSSL_NELEM(dyn_script_1_crypto_1a)
                   - dyn_script_1_start_from + 1);
     return 1;
