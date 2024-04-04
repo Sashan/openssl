@@ -615,7 +615,6 @@ SSL *ossl_quic_new(SSL_CTX *ctx)
     qc->default_ssl_mode        = qc->obj.ssl.ctx->mode;
     qc->default_ssl_options     = qc->obj.ssl.ctx->options & OSSL_QUIC_PERMITTED_OPTIONS;
     qc->incoming_stream_policy  = SSL_INCOMING_STREAM_POLICY_AUTO;
-    qc->incoming_stream_policy  = SSL_INCOMING_STREAM_POLICY_AUTO;
     qc->last_error              = SSL_ERROR_NONE;
 
     qc_update_reject_policy(qc);
@@ -1751,10 +1750,6 @@ static int create_channel(QUIC_CONNECTION *qc, SSL_CTX *ctx)
     engine_args.propq         = ctx->propq;
 #if defined(OPENSSL_THREADS)
     engine_args.mutex         = qc->mutex;
-#endif
-#if 0
-    engine_args.now_cb        = get_time_cb;
-    engine_args.now_cb_arg    = qc;
 #endif
 
     if (need_notifier_for_domain_flags(ctx->domain_flags))
@@ -3220,6 +3215,20 @@ SSL *ossl_quic_get0_connection(SSL *s)
         return NULL;
 
     return &ctx.qc->obj.ssl;
+}
+
+/*
+ * SSL_get0_listener
+ * -----------------
+ */
+SSL *ossl_quic_get0_listener(SSL *s)
+{
+    QCTX ctx;
+
+    if (!expect_quic_csl(s, &ctx))
+        return NULL;
+
+    return ctx.ql != NULL ? &ctx.ql->obj.ssl : NULL;
 }
 
 /*
