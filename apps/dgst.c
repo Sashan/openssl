@@ -503,6 +503,8 @@ static void show_digests(const OBJ_NAME *name, void *arg)
     } else {
         BIO_printf(dec->bio, " ");
     }
+
+    EVP_MD_free(md);
 }
 
 /*
