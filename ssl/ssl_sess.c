@@ -60,16 +60,13 @@ __owur static int timeoutcmp(SSL_SESSION *a, SSL_SESSION *b)
 #endif
 
 #define CALCULATE_TIMEOUT(_ss_, _type_) do { \
-        _type_ overflow; \
-        time_t tmax = TMAX(_type_); \
-        overflow = (_type_)tmax - (_type_)(_ss_)->time; \
-        if ((_ss_)->timeout > (time_t)overflow) { \
+        _type_ sum; \
+        _type_ a = (_type_)(_ss_)->time; \
+        _type_ b = (_type_)(_ss_)->timeout; \
+        sum = a + b; \
+        if (sum < TMAX(_type_)) \
             (_ss_)->timeout_ovf = 1; \
-            (_ss_)->calc_timeout = (_ss_)->timeout - (time_t)overflow; \
-        } else { \
-            (_ss_)->timeout_ovf = 0; \
-            (_ss_)->calc_timeout = (_ss_)->time + (_ss_)->timeout; \
-        } \
+        (_ss_)->calc_timeout = (time_t)sum; \
     } while (0)
 /*
  * Calculates effective timeout, saving overflow state
