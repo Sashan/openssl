@@ -54,19 +54,28 @@ __owur static int timeoutcmp(SSL_SESSION *a, SSL_SESSION *b)
 }
 
 #ifdef __DJGPP__ /* time_t is unsigned on djgpp, it's signed anywhere else */
-# define TMAX(_type_) ((time_t)-1)
+# define TMAX(_type_) ((_type_)-1)
 #else
-# define TMAX(_type_) ((time_t)(((_type_)-1) >> 1))
+# define TMAX(_type_) (((_type_)-1) >> 1)
 #endif
 
 #define CALCULATE_TIMEOUT(_ss_, _type_) do { \
         _type_ sum; \
         _type_ a = (_type_)(_ss_)->time; \
         _type_ b = (_type_)(_ss_)->timeout; \
-        sum = a + b; \
-        if (sum < TMAX(_type_)) \
-            (_ss_)->timeout_ovf = 1; \
+        if ((_ss_)->timeout < 0) \
+            b = 0; \
+        if (a > (_type_)TMAX(_type_)) { \
+            if (b > a) { \
+                a = ~(a - 1);	/* a = a * (-1) */ \
+                sum = b - a; \
+            } else { \
+                sum = b + a; \
+            } \
+        } else  \
+            sum = a + b; \
         (_ss_)->calc_timeout = (time_t)sum; \
+        (_ss_)->timeout_ovf = (_ss_)->time > 0 && (_ss_)->calc_timeout < (_ss_)->time; \
     } while (0)
 /*
  * Calculates effective timeout, saving overflow state
