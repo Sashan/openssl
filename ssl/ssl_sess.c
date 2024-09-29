@@ -65,12 +65,13 @@ __owur static int timeoutcmp(SSL_SESSION *a, SSL_SESSION *b)
         _type_ b = (_type_)(_ss_)->timeout; \
         if ((_ss_)->timeout < 0) \
             b = 0; \
-        if (a > (_type_)TMAX(_type_)) { \
+        if (a > TMAX(_type_)) { \
+            a = ~(a - 1);	/* a = a * (-1) */ \
             if (b > a) { \
-                a = ~(a - 1);	/* a = a * (-1) */ \
                 sum = b - a; \
-            } else { \
-                sum = b + a; \
+            } else { /* b is never greater than 0x7fffffffffffffff */\
+                a = ~(a - 1); /* it is safe add both operands after undoing a * (-1) */\
+                sum = a + b; \
             } \
         } else  \
             sum = a + b; \
