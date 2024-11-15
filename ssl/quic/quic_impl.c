@@ -4327,7 +4327,34 @@ err:
  */
 SSL *ossl_quic_new_from_listener(SSL *ssl, uint64_t flags)
 {
-    /* TODO(QUIC SERVER): Implement SSL_new_from_listener */
+    QCTX ctx;
+    QUIC_LISTENER *ql = NULL;
+    QUIC_PORT_ARGS port_args = {0};
+
+    if (flags != 0)
+        return NULL;
+
+    /*
+     * We create listener if ssl object coming as argument
+     * is not a listener.
+     */
+    if (!expect_quic_listener(ssl, &ctx))
+        return ossl_quic_new_listener(ssl, flags);
+
+    /*
+     * ssl object is listener, then we just need to accept
+     * connection.
+     */
+
+    if (!SSL_up_ref(&ctx.qd->obj.ssl))
+        return NULL;
+
+    qctx_lock(&ctx);
+
+    /*
+     * if there is no port in ctx we need to create one and return
+     * self.
+     */
     return NULL;
 }
 
