@@ -4328,33 +4328,58 @@ err:
 SSL *ossl_quic_new_from_listener(SSL *ssl, uint64_t flags)
 {
     QCTX ctx;
-    QUIC_LISTENER *ql = NULL;
-    QUIC_PORT_ARGS port_args = {0};
+    QUIC_CONNECTION *qc;
 
     if (flags != 0)
         return NULL;
 
-    /*
-     * We create listener if ssl object coming as argument
-     * is not a listener.
-     */
     if (!expect_quic_listener(ssl, &ctx))
-        return ossl_quic_new_listener(ssl, flags);
-
-    /*
-     * ssl object is listener, then we just need to accept
-     * connection.
-     */
+        return NULL;
 
     if (!SSL_up_ref(&ctx.qd->obj.ssl))
         return NULL;
 
     qctx_lock(&ctx);
 
+    if ((qc = OPENSSL_zalloc(sizeof(*qc))) == NULL) {
+        QUIC_RAISE_NON_NORMAL_ERROR(NULL, ERR_R_CRYPTO_LIB, NULL);
+        goto err;
+    }
+
     /*
-     * if there is no port in ctx we need to create one and return
-     * self.
+     * quic connection instance inherits engine and port from
+     * listener.
      */
+    qc->engine = ctx.ql->engine;
+    qc->port = ctx.ql->port;
+    /*
+     * using tls NULL, so port gets its new handshake layer
+     */
+    qc->ch = ossl_quic_port_create_outgoing(qc->port, NULL);
+
+    /*
+     * Initialise the QUIC_CONNECTION's object header.
+     * Note arguments arg4 (qc->engine) and arg5 (qc->port) here.
+     * Using listner's engine and port here makes `qc` we create
+     * here not to be an event leader and port leader. The qc
+     * we created here can not be a leader on these because
+     * nor engine, nor port were created specifically for this
+     * qc instance. We inheriting both of them from listener.
+     */
+    if (!ossl_quic_obj_init(&qc->obj, ssl->ctx, SSL_TYPE_QUIC_CONNECTION,
+                            &ctx.qd->obj.ssl, qc->engine, qc->port))
+        goto err;
+
+    qctx_unlock(&ctx);
+
+    return &qc->obj.ssl;
+
+err:
+    ossl_quic_port_free(qc->ch);
+    OPENSSL_free(qc);
+    qctx_unlock(&ctx);
+    SSL_free(&ctx.qd->obj.ssl);
+
     return NULL;
 }
 
