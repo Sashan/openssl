@@ -10,6 +10,7 @@
 #include "internal/quic_demux.h"
 #include "internal/quic_wire_pkt.h"
 #include "internal/common.h"
+#include "internal/quic_record_rx.h"
 #include <openssl/lhash.h>
 #include <openssl/err.h>
 
@@ -63,6 +64,9 @@ struct quic_demux_st {
      * which point we add it to the free list.
      */
     QUIC_URXE_LIST              urx_pending;
+
+    /* receives packets in initial level */
+    OSSL_QRX                        *qrx;
 
     /* Whether to use local address support. */
     char                        use_local_addr;
@@ -313,6 +317,7 @@ static int demux_recv(QUIC_DEMUX *demux)
     return QUIC_DEMUX_PUMP_RES_OK;
 }
 
+#if 0
 /* Extract destination connection ID from the first packet in a datagram. */
 static int demux_identify_conn_id(QUIC_DEMUX *demux,
                                   QUIC_URXE *e,
@@ -323,6 +328,7 @@ static int demux_identify_conn_id(QUIC_DEMUX *demux,
                                                   demux->short_conn_id_len,
                                                   dst_conn_id);
 }
+#endif
 
 /*
  * Process a single pending URXE.
@@ -331,7 +337,7 @@ static int demux_identify_conn_id(QUIC_DEMUX *demux,
 static int demux_process_pending_urxe(QUIC_DEMUX *demux, QUIC_URXE *e)
 {
     QUIC_CONN_ID dst_conn_id;
-    int dst_conn_id_ok = 0;
+    RXE *rxep;
 
     /* The next URXE we process should be at the head of the pending list. */
     if (!ossl_assert(e == ossl_list_urxe_head(&demux->urx_pending)))
@@ -339,18 +345,36 @@ static int demux_process_pending_urxe(QUIC_DEMUX *demux, QUIC_URXE *e)
 
     assert(e->demux_state == URXE_DEMUX_STATE_PENDING);
 
-    /* Determine the DCID of the first packet in the datagram. */
-    dst_conn_id_ok = demux_identify_conn_id(demux, e, &dst_conn_id);
-
     ossl_list_urxe_remove(&demux->urx_pending, e);
-    if (demux->default_cb != NULL) {
+    if (e->data_len > 0 && demux->default_cb != NULL) {
+
         /*
-         * Pass to default handler for routing. The URXE now belongs to the
-         * callback.
+         * packets in initial encryption level are not
+         * bound to channel yet, so we can not use channel
+         * to verify packet integrity. Integrity (corruption)
+         * of initial packets is checked right here.
          */
-        e->demux_state = URXE_DEMUX_STATE_ISSUED;
-        demux->default_cb(e, demux->default_cb_arg,
-                          dst_conn_id_ok ? &dst_conn_id : NULL);
+        if (ossl_qrx_read_urxe(demux->qrx, e, &dst_conn_id, &rxep)) {
+            if (e->data_len != 0) {
+                /*
+		 * Pass to default handler for routing. The URXE now belongs to
+		 * the callback.
+                 * default_cb needs to create channel if it does not
+                 * exit yet.
+                 */
+                e->demux_state = URXE_DEMUX_STATE_ISSUED;
+                /* port_default_packet_handler,*/
+                demux->default_cb(e, demux->default_cb_arg, &dst_conn_id);
+            } else {
+                if (ossl_qrx_inject_rxe(demux->qrx, rxep) == 0) {
+                    ossl_list_urxe_insert_tail(&demux->urx_free, e);
+                    e->demux_state = URXE_DEMUX_STATE_FREE;
+                }
+            } 
+        } else {
+            ossl_list_urxe_insert_tail(&demux->urx_free, e);
+            e->demux_state = URXE_DEMUX_STATE_FREE;
+        }
     } else {
         /* Discard. */
         ossl_list_urxe_insert_tail(&demux->urx_free, e);
@@ -471,4 +495,14 @@ void ossl_quic_demux_reinject_urxe(QUIC_DEMUX *demux,
 int ossl_quic_demux_has_pending(const QUIC_DEMUX *demux)
 {
     return ossl_list_urxe_head(&demux->urx_pending) != NULL;
+}
+
+void ossl_quic_demux_enable_incoming(QUIC_DEMUX *demux)
+{
+     ossl_qrx_enable_incoming(demux->qrx);
+}
+
+void ossl_quic_demux_disable_incoming(QUIC_DEMUX *demux)
+{
+     ossl_qrx_disable_incoming(demux->qrx);
 }

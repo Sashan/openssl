@@ -20,6 +20,15 @@
 # ifndef OPENSSL_NO_QUIC
 
 /*
+ * RXE
+ * ===
+ *
+ * RX Entries (RXEs) store processed (i.e., decrypted) data received from the
+ * network. One RXE is used per received QUIC packet.
+ */
+typedef struct rxe_st RXE;
+
+/*
  * QUIC Record Layer - RX
  * ======================
  */
@@ -46,6 +55,7 @@ typedef struct ossl_qrx_args_st {
 
     /* Initial key phase. For debugging use only; always 0 in real use. */
     unsigned char   init_key_phase_bit;
+
 } OSSL_QRX_ARGS;
 
 /* Instantiates a new QRX. */
@@ -542,6 +552,15 @@ uint64_t ossl_qrx_get_cur_forged_pkt_count(OSSL_QRX *qrx);
  */
 uint64_t ossl_qrx_get_max_forged_pkt_count(OSSL_QRX *qrx,
                                            uint32_t enc_level);
+
+int ossl_qrx_read_urxe(OSSL_QRX *qrx, QUIC_URXE *e, QUIC_CONN_ID *dst_conn_id,
+                       RXE **rxe);
+
+void ossl_qrx_queue_rxe(OSSL_QRX *qrx, RXE *rxe);
+
+void ossl_qrx_enable_incoming(OSSL_QRX *qrx);
+void ossl_qrx_disable_incoming(OSSL_QRX *qrx);
+int ossl_qrx_inject_rxe(OSSL_QRX *qrx, RXE *rxe);
 
 # endif
 

@@ -32,15 +32,6 @@ static ossl_inline int pkt_is_marked(const uint64_t *bitf, size_t pkt_idx)
     return (*bitf & (((uint64_t)1) << pkt_idx)) != 0;
 }
 
-/*
- * RXE
- * ===
- *
- * RX Entries (RXEs) store processed (i.e., decrypted) data received from the
- * network. One RXE is used per received QUIC packet.
- */
-typedef struct rxe_st RXE;
-
 struct rxe_st {
     OSSL_QRX_PKT        pkt;
     OSSL_LIST_MEMBER(rxe, RXE);
@@ -48,6 +39,7 @@ struct rxe_st {
 
     /* Extra fields for per-packet information. */
     QUIC_PKT_HDR        hdr; /* data/len are decrypted payload */
+    QUIC_PKT_HDR_PTRS   ptrs;
 
     /* Decoded packet number. */
     QUIC_PN             pn;
@@ -171,6 +163,9 @@ struct ossl_qrx_st {
     ossl_msg_cb msg_callback;
     void *msg_callback_arg;
     SSL *msg_callback_ssl;
+
+    /* enable processing of inbound datagrams */
+    char            allow_incoming;
 };
 
 OSSL_QRX *ossl_qrx_new(const OSSL_QRX_ARGS *args)
@@ -338,6 +333,12 @@ static RXE *qrx_alloc_rxe(size_t alloc_len)
         return NULL;
 
     ossl_list_rxe_init_elem(rxe);
+
+    rxe->ptrs.raw_start = NULL;
+    rxe->ptrs.raw_sample = NULL;
+    rxe->ptrs.raw_sample_len = 0;
+    rxe->ptrs.raw_pn = NULL;
+
     rxe->alloc_len = alloc_len;
     rxe->data_len  = 0;
     rxe->refcount  = 0;
@@ -1208,6 +1209,12 @@ static int qrx_process_pending_urxl(OSSL_QRX *qrx)
     return 1;
 }
 
+#if 0
+int ossl_qrx_peek_pkt()
+{
+}
+#endif
+
 int ossl_qrx_read_pkt(OSSL_QRX *qrx, OSSL_QRX_PKT **ppkt)
 {
     RXE *rxe;
@@ -1355,4 +1362,87 @@ void ossl_qrx_set_msg_callback(OSSL_QRX *qrx, ossl_msg_cb msg_callback,
 void ossl_qrx_set_msg_callback_arg(OSSL_QRX *qrx, void *msg_callback_arg)
 {
     qrx->msg_callback_arg = msg_callback_arg;
+}
+
+void ossl_qrx_enable_incoming(OSSL_QRX *qrx)
+{
+    qrx->allow_incoming = 1;
+}
+
+void ossl_qrx_disable_incoming(OSSL_QRX *qrx)
+{
+    qrx->allow_incoming = 0;
+}
+
+/*
+ * Sanity check for packets at initial encryption level before they
+ * are sidpatched to server port. This function handles all incoming
+ * packets for server.
+ */
+int ossl_qrx_read_urxe(OSSL_QRX *qrx, QUIC_URXE *e, QUIC_CONN_ID *dst_conn_id, RXE **rxe)
+{
+    unsigned char *e_data = ossl_quic_urxe_data(e);
+    int ok;
+    PACKET pkt;
+    QUIC_PKT_HDR *hdr;
+    OSSL_QRL_ENC_LEVEL *el = NULL;
+
+    if (!qrx->allow_incoming)
+        return 0;
+
+    ok = ossl_quic_wire_get_pkt_hdr_dst_conn_id(e_data, e->data_len,
+        qrx->short_conn_id_len, dst_conn_id);
+    if (ok == 0)
+        return 0; /* no destination connnection id, drop it */
+
+    /*
+     * Not initial packet, should be passed to part as port might
+     * have existing channel for it.
+     */
+    if (e->data_len < QUIC_MIN_INITIAL_DGRAM_LEN)
+        return 1; /* not initial packet, but perhaps existint dst conn id */
+
+    if (!PACKET_buf_init(&pkt, e_data, e->data_len))
+        return 0;
+
+    if (PACKET_remaining(&pkt) < QUIC_MIN_INITIAL_DGRAM_LEN)
+        return 1;
+
+    /* this is temporal rxe */
+    *rxe = qrx_alloc_rxe(PACKET_remaining(&pkt));
+    if (*rxe == NULL)
+        return 0;
+
+    if (!ossl_quic_wire_decode_pkt_hdr(&pkt,
+                                       qrx->short_conn_id_len,
+                                       0, 0, &((*rxe)->hdr), &((*rxe)->ptrs),
+                                       NULL)) {
+        OPENSSL_free(*rxe);
+        *rxe = NULL;
+        return 0; 
+    }
+
+    hdr = &((*rxe)->hdr);
+
+    if (hdr->type != QUIC_PKT_TYPE_INITIAL) {
+        el = ossl_qrl_enc_level_set_get(&qrx->el_set, QUIC_ENC_LEVEL_INITIAL, 1);
+        if (!ossl_quic_hdr_protector_decrypt(&el->hpr, &((*rxe)->ptrs))) {
+            OPENSSL_free(*rxe);
+            *rxe = NULL;
+            return 0; 
+        }
+        /*
+	 * We have removed header protection, so don't attempt to do it again
+	 * if the packet gets deferred and processed again.
+         */
+        pkt_mark(&e->hpr_removed, 0);
+    }
+
+    return 1;
+}
+
+int ossl_qrx_inject_rxe(OSSL_QRX *qrx, RXE *rxe)
+{
+    ossl_list_rxe_insert_tail(&qrx->rx_pending, rxe);
+    return 1;
 }

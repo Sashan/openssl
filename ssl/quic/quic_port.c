@@ -23,8 +23,6 @@
  * QUIC Port Structure
  * ===================
  */
-#define INIT_DCID_LEN                   8
-
 static int port_init(QUIC_PORT *port);
 static void port_cleanup(QUIC_PORT *port);
 static OSSL_TIME get_time(void *arg);
@@ -127,7 +125,7 @@ void ossl_quic_port_free(QUIC_PORT *port)
 
 static int port_init(QUIC_PORT *port)
 {
-    size_t rx_short_dcid_len = (port->is_multi_conn ? INIT_DCID_LEN : 0);
+    size_t rx_short_dcid_len = (port->is_multi_conn ? QUIC_OSSL_INIT_DCID_LEN : 0);
     int key_len;
     EVP_CIPHER *cipher = NULL;
     unsigned char *token_key = NULL;
@@ -157,7 +155,7 @@ static int port_init(QUIC_PORT *port)
         goto err;
 
     port->rx_short_dcid_len = (unsigned char)rx_short_dcid_len;
-    port->tx_init_dcid_len  = INIT_DCID_LEN;
+    port->tx_init_dcid_len  = QUIC_OSSL_INIT_DCID_LEN;
     port->state             = QUIC_PORT_STATE_RUNNING;
 
     ossl_list_port_insert_tail(&port->engine->port_list, port);
@@ -509,6 +507,7 @@ QUIC_CHANNEL *ossl_quic_port_create_incoming(QUIC_PORT *port, SSL *tls)
     ch = port_make_channel(port, tls, /*is_server=*/1);
     port->tserver_ch = ch;
     port->allow_incoming = 1;
+    ossl_quic_demux_enable_incoming(port->demux);
     return ch;
 }
 
@@ -548,6 +547,10 @@ void ossl_quic_port_drop_incoming(QUIC_PORT *port)
 void ossl_quic_port_set_allow_incoming(QUIC_PORT *port, int allow_incoming)
 {
     port->allow_incoming = allow_incoming;
+    if (allow_incoming)
+        ossl_quic_demux_enable_incoming(port->demux);
+    else
+        ossl_quic_demux_disable_incoming(port->demux);
 }
 
 /*
@@ -1298,21 +1301,10 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
     }
 
     /*
-     * If we have an incoming packet which doesn't match any existing connection
-     * we assume this is an attempt to make a new connection.
+     * packet did not match any channel, so we must be dealing
+     * with initial packet. If we are here the initial packet
+     * is valid, otherwise it would get dropped by demultiplexer.
      */
-    if (!port->allow_incoming)
-        goto undesirable;
-
-    /*
-     * We have got a packet for an unknown DCID. This might be an attempt to
-     * open a new connection.
-     */
-    if (e->data_len < QUIC_MIN_INITIAL_DGRAM_LEN)
-        goto undesirable;
-
-    if (!PACKET_buf_init(&pkt, ossl_quic_urxe_data(e), e->data_len))
-        goto undesirable;
 
     /*
      * We set short_conn_id_len to SIZE_MAX here which will cause the decode

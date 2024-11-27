@@ -16,6 +16,7 @@
 # include "internal/bio_addr.h"
 # include "internal/time.h"
 # include "internal/list.h"
+# include "internal/packet.h"
 
 # ifndef OPENSSL_NO_QUIC
 
@@ -88,6 +89,12 @@
 
 struct quic_urxe_st {
     OSSL_LIST_MEMBER(urxe, QUIC_URXE);
+
+    /*
+     * demultiplexer does basic handling of QUIC packets
+     * on initial encryption level.
+     */
+     PACKET         pkt;
 
     /*
      * The URXE data starts after this structure so we don't need a pointer.
@@ -299,6 +306,8 @@ int ossl_quic_demux_inject(QUIC_DEMUX *demux,
  */
 int ossl_quic_demux_has_pending(const QUIC_DEMUX *demux);
 
+void ossl_quic_demux_enable_incoming(QUIC_DEMUX *demux);
+void ossl_quic_demux_disable_incoming(QUIC_DEMUX *demux);
 # endif
 
 #endif
