@@ -4336,7 +4336,7 @@ SSL *ossl_quic_new_from_listener(SSL *ssl, uint64_t flags)
     if (!expect_quic_listener(ssl, &ctx))
         return NULL;
 
-    if (!SSL_up_ref(&ctx.qd->obj.ssl))
+    if (!SSL_up_ref(&ctx.ql->obj.ssl))
         return NULL;
 
     qctx_lock(&ctx);
@@ -4367,7 +4367,7 @@ SSL *ossl_quic_new_from_listener(SSL *ssl, uint64_t flags)
      * qc instance. We inheriting both of them from listener.
      */
     if (!ossl_quic_obj_init(&qc->obj, ssl->ctx, SSL_TYPE_QUIC_CONNECTION,
-                            &ctx.qd->obj.ssl, qc->engine, qc->port))
+                            &ctx.ql->obj.ssl, qc->engine, qc->port))
         goto err;
 
     qctx_unlock(&ctx);
@@ -4378,7 +4378,7 @@ err:
     ossl_quic_port_free(qc->ch);
     OPENSSL_free(qc);
     qctx_unlock(&ctx);
-    SSL_free(&ctx.qd->obj.ssl);
+    SSL_free(&ctx.ql->obj.ssl);
 
     return NULL;
 }
