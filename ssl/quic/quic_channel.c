@@ -1284,7 +1284,8 @@ static int ch_on_transport_params(const unsigned char *params,
             }
 
             /* Must match SCID of first Initial packet from server. */
-            if (!ossl_quic_conn_id_eq(&ch->init_scid, &cid)) {
+            /* we don't send initial scid, the option is empty */
+            if (cid.id_len != 0 &&  !ossl_quic_conn_id_eq(&ch->init_scid, &cid)) {
                 reason = TP_REASON_EXPECTED_VALUE("INITIAL_SCID");
                 goto malformed;
             }
