@@ -1,4 +1,5 @@
 all:	quic-new-from-listener \
+	quic-client-server \
 	file_list.h	\
 	file_1024.txt	\
 	file_2048.txt	\
@@ -11,6 +12,9 @@ LDFLAGS=-L/home/sashan/work.openssl/openssl.binaries/openssl-master.listener/lib
 LIBS=-lcrypto
 LIBS+=-lssl
 quic-new-from-listener: quic-new-from-listener.c file_list.h
+	$(CC) -g -O0 $(CPPFLAGS) -o $@ $< $(LDFLAGS) $(LIBS)
+
+quic-client-server: quic-client-server.c file_list.h
 	$(CC) -g -O0 $(CPPFLAGS) -o $@ $< $(LDFLAGS) $(LIBS)
 
 file_1024.txt:
@@ -45,3 +49,4 @@ clean:
 	rm -f file_*.txt
 	rm -f file_list.h
 	rm -f quic-new-from-listener
+	rm -f quic-client-server
