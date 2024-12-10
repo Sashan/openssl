@@ -307,7 +307,7 @@ int client_transfer(SSL *ssl_stream, const char *filename)
         fprintf(stderr, "[ Client ] unexpected length in %s\n", filename);
         goto done;
     }
- 
+
     snprintf(buf, sizeof(buf), "GET /%s\r\n", filename);
     if (!SSL_write_ex(ssl_stream, buf, strlen(buf), &transfered)) {
         fprintf(stderr, "[ Client ] SSL_write_ex() failed %s\n",

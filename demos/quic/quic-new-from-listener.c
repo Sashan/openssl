@@ -387,7 +387,7 @@ int client_passive_transfer(SSL *ssl_stream, const char *filename)
         fprintf(stderr, "[ Client ] unexpected length in %s\n", filename);
         goto done;
     }
- 
+
     snprintf(buf, sizeof(buf), "GET /%s\r\n", filename);
     if (!SSL_write_ex(ssl_stream, buf, strlen(buf), &transfered)) {
         fprintf(stderr, "[ Client ] SSL_write_ex() failed %s\n",
@@ -447,7 +447,7 @@ int client_active_transfer(SSL *ssl_stream_cmd, SSL *ssl_qconn_listener,
         fprintf(stderr, "[ Client ] unexpected length in %s\n", filename);
         goto done;
     }
- 
+
     /*
      * Active transfer request, server connects back, note the
      * first path component is localhost:port. We use port + 1 where
@@ -467,7 +467,7 @@ int client_active_transfer(SSL *ssl_stream_cmd, SSL *ssl_qconn_listener,
     SSL_stream_conclude(ssl_stream_cmd, 0);
 
     /*
-     * accept QUIC connection for data first. 
+     * accept QUIC connection for data first.
      */
     ssl_qconn_data = SSL_accept_connection(ssl_qconn_listener, 0);
     if (ssl_qconn_data == NULL) {

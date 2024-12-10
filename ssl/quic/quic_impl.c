@@ -12,7 +12,6 @@
 #include <openssl/sslerr.h>
 #include <crypto/rand.h>
 #include "quic_local.h"
-#include "quic_port_local.h"
 #include "internal/ssl_unwrap.h"
 #include "internal/quic_tls.h"
 #include "internal/quic_rx_depack.h"
@@ -4324,7 +4323,15 @@ err:
 /*
  * SSL_new_from_listener
  * ---------------------
- * code here is dereived from ossl_quic_new()
+ * code here is derived from ossl_quic_new(). The `ssl` argument is
+ * a listener object which already come with QUIC port/engine. The newly
+ * created QUIC connection object (QCSO) is going to share the port/engine
+ * with listener (`ssl`).  The `ssl` also becomes a parent of QCSO created
+ * by this function. The caller uses QCSO instance to connect to
+ * remote QUIC server.
+ *
+ * The QCSO created here requires us to also create a channel so we
+ * can connect to remote server.
  */
 SSL *ossl_quic_new_from_listener(SSL *ssl, uint64_t flags)
 {
@@ -4352,16 +4359,25 @@ SSL *ossl_quic_new_from_listener(SSL *ssl, uint64_t flags)
         goto err;
     }
 
+    /*
+     * XXX setting listener here is needed so `qc_cleanup()` does
+     * a right thing. There is `TOOD` comment in `qc_cleanup()`, which
+     * makes me believe line below is correct for now.
+     * Without this might be destroying port prematurely.
+     *
+     * Perhaps we should be grabbing a references to engine and port here.
+     */
     qc->listener = ql;
     qc->engine = ql->engine;
     qc->port = ql->port;
 /* create channel */
 #if defined(OPENSSL_THREADS)
+    /* this is the engine mutex */
     qc->mutex = ql->mutex;
 #endif
 #if !defined(OPENSSL_NO_QUIC_THREAD_ASSIST)
     qc->is_thread_assisted
-        = ((ql->obj.domain_flags & SSL_DOMAIN_FLAG_THREAD_ASSISTED) != 0);
+    = ((ql->obj.domain_flags & SSL_DOMAIN_FLAG_THREAD_ASSISTED) != 0);
 #endif
 
     /* Create the handshake layer. */
@@ -4372,10 +4388,10 @@ SSL *ossl_quic_new_from_listener(SSL *ssl, uint64_t flags)
     }
     sc->s3.flags |= TLS1_FLAGS_QUIC;
 
-    qc->default_ssl_options = OSSL_QUIC_PERMITTED_OPTIONS_CONN |
-                              OSSL_QUIC_PERMITTED_OPTIONS_STREAM;
+    qc->default_ssl_options = OSSL_QUIC_PERMITTED_OPTIONS;
     qc->last_error = SSL_ERROR_NONE;
 
+    /* this is QCSO, we don't expect to accept connections */
     qc->ch = ossl_quic_port_create_outgoing(qc->port, qc->tls);
     if (qc->ch == NULL)
         goto err;
@@ -4383,6 +4399,13 @@ SSL *ossl_quic_new_from_listener(SSL *ssl, uint64_t flags)
     ossl_quic_channel_set_msg_callback(qc->ch, ql->obj.ssl.ctx->msg_callback, &qc->obj.ssl);
     ossl_quic_channel_set_msg_callback_arg(qc->ch, ql->obj.ssl.ctx->msg_callback_arg);
 
+    /*
+     * we deliberately pass NULL for engine and port, because we don't want to
+     * to turn QCSO we create here into an event leader, nor port leader,
+     * because the listener (`ssl`) took both those roles already. The question
+     * is what happens with listener gets destroyed, who will be the leader then?
+     * I still need to convince myself there is a plan for this.
+     */
     if (!ossl_quic_obj_init(&qc->obj, ql->obj.ssl.ctx,
                             SSL_TYPE_QUIC_CONNECTION,
                             &ql->obj.ssl, NULL, NULL)) {
@@ -4407,7 +4430,7 @@ SSL *ossl_quic_new_from_listener(SSL *ssl, uint64_t flags)
 
 err:
     if (qc != NULL) {
-        qc_cleanup(qc, /*have_lock=*/0);
+        qc_cleanup(qc, /*have_lock=*/ 0);
         OPENSSL_free(qc);
     }
     qctx_unlock(&ctx);
