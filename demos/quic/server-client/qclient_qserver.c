@@ -815,6 +815,7 @@ static int client_run(SSL *ssl_qconn, SSL *ssl_qconn_listener,
         if (err == 0)
             filename++;
 
+        SSL_stream_conclude(ssl_qstream_cmd, 0);
         SSL_free(ssl_qstream_cmd);
     }
 
