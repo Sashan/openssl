@@ -8,8 +8,7 @@
 #
 # TODO(QUIC SERVER): Add build.info.
 #
-CFLAGS  += -I../../../include -g -O0 -Wall -Wsign-compare
-LDFLAGS += -L../../..
+CFLAGS  += -g -O0 -Wall -Wsign-compare
 LDLIBS  = -lcrypto -lssl
 
 all: qclient qserver
