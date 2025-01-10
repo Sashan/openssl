@@ -640,7 +640,11 @@ static int client_stream_transfer(SSL *ssl_qstream, size_t expected,
         return 1;
     }
 
+    fprintf(stdout, "( Client ) %s %s test read start\n",
+            runtime(tbuf, sizeof (tbuf)), __func__);
     chk = SSL_read_ex(ssl_qstream, buf, sizeof (buf), &x);
+    fprintf(stdout, "( Client ) %s %s test read done\n",
+            runtime(tbuf, sizeof (tbuf)), __func__);
     if (chk != 0) {
         fprintf(stderr,
                 "[ Client ] %s %s there is more than %zu to receive in %s\n",
