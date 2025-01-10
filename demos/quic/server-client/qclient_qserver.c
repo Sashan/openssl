@@ -847,6 +847,8 @@ static BIO_ADDR *resolve_host_port(const char *host_port)
         free(host);
         return NULL;
     }
+    *port_str = '\0';
+    port_str++;
 
     chk = BIO_lookup_ex(host, port_str, BIO_LOOKUP_CLIENT, AF_UNSPEC,
                         SOCK_DGRAM, IPPROTO_UDP, &bai);
