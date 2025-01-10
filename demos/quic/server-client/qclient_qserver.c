@@ -777,7 +777,7 @@ static void client_send_quit(SSL *ssl_qconn)
         }
         SSL_free(ssl_qstream);
     } else {
-        fprintf(stderr, "[ Client ] %s can not create stream %s\n",
+        fprintf(stderr, "[ Client ] %s can not create stream (%s)\n",
                 __func__, ERR_reason_error_string(ERR_get_error()));
     }
 }
@@ -812,10 +812,15 @@ static int client_run(SSL *ssl_qconn, SSL *ssl_qconn_listener,
         else
             err = client_ftplike_transfer(ssl_qstream_cmd, ssl_qconn_listener,
                                           bio_addr, *filename);
+
+        if (SSL_stream_conclude(ssl_qstream_cmd, 0) == 0)
+            fprintf(stderr, "[ Client ] %s(%s) SSL_stream_conclude %s for %s\n",
+                    __func__, ssl_qconn_listener == NULL ? "http-like" : "ftp-like",
+                    ERR_reason_error_string(ERR_get_error()), *filename);
+
         if (err == 0)
             filename++;
 
-        SSL_stream_conclude(ssl_qstream_cmd, 0);
         SSL_free(ssl_qstream_cmd);
     }
 
