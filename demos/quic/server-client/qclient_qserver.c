@@ -700,8 +700,8 @@ static int client_ftplike_transfer(SSL *ssl_qstream_cmd,
         fprintf(stderr, "[ Client ] BIO_ADDR_service_string failed\n");
         goto done;
     }
-    snprintf(buf, sizeof(buf), "GET /%s:%s/%s\r\n", hostip_str, port_str,
-             filename);
+    snprintf(buf, sizeof(buf), "GET /%s:%u/%s\r\n", ftpdata_ip,
+             atoi(port_str) + 1, filename);
     chk = SSL_write_ex(ssl_qstream_cmd, buf, strlen(buf), &transfered);
     if (chk == 0) {
         fprintf(stderr, "[ Client ] %s SSL_write_ex() failed %s\n",
@@ -894,7 +894,6 @@ static int qclient_main(int argc, const char *argv[])
         return EXIT_FAILURE;
     }
 
-    ftpdata_ip = argv[2];
     chk = BIO_lookup_ex(argv[2], NULL, BIO_LOOKUP_CLIENT, AF_UNSPEC,
                         SOCK_DGRAM, IPPROTO_UDP, &bai);
     if (chk == 0) {
@@ -904,6 +903,7 @@ static int qclient_main(int argc, const char *argv[])
     }
     BIO_ADDRINFO_free(bai);
     bai = NULL;
+    ftpdata_ip = argv[2];
 
     bio_addr = resolve_host_port(argv[1]);
     if (bio_addr == NULL)
