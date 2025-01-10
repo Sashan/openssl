@@ -1220,7 +1220,7 @@ static int client_run_connections(SSL_CTX *ssl_ctx, BIO_ADDR *bio_addr)
 
         chk = SSL_connect(ssl_qconn);
         if (chk != 1) {
-            fprintf(stderr, "[ Client ]: %s SSL_connect (%s)\n",
+            fprintf(stderr, "[ Client ] %s SSL_connect (%s)\n",
                     runtime(tbuf, sizeof (tbuf)),
                     ERR_reason_error_string(ERR_get_error()));
             ERR_print_errors_fp(stderr);
@@ -1361,7 +1361,7 @@ static int qserver_main(int argc, const char *argv[])
     ssl_ctx = create_ctx(argv[2], argv[3]);
     if (ssl_ctx == NULL) {
         ERR_print_errors_fp(stderr);
-        fprintf(stderr, "[ Server ]: Failed to create context\n");
+        fprintf(stderr, "[ Server ] Failed to create context\n");
         goto out;
     }
 
