@@ -11,13 +11,14 @@
 CFLAGS  += -g -O0 -Wall -Wsign-compare
 LDLIBS  = -lcrypto -lssl
 
-all: qclient qserver
+all: qclient qserver qclient-listene
 
 qclient: qclient_qserver.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 qserver: qclient
 	cp qclient qserver
+	cp qclient qclient-listene
 
 clean:
-	$(RM) qclient qserver *.o
+	$(RM) qclient qclient-listene qserver *.o
