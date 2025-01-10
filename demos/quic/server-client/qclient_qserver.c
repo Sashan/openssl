@@ -520,9 +520,8 @@ static int run_quic_server(SSL_CTX *ssl_ctx, BIO **bio_sock)
             ssl_qstream = SSL_accept_stream(ssl_qconn, 0);
             if (ssl_qstream == NULL) {
                 errcode = ERR_get_error();
-                if (ERR_GET_REASON(errcode) != SSL_R_PROTOCOL_IS_SHUTDOWN)
-                    fprintf(stderr, "[ Server ] %s SSL_accept_stream %s\n",
-                            __func__, ERR_reason_error_string(errcode));
+                fprintf(stderr, "[ Server ] %s SSL_accept_stream %s\n",
+                        __func__, ERR_reason_error_string(errcode));
                 break;
             }
             process_new_stream(ssl_qlistener, ssl_qstream);
