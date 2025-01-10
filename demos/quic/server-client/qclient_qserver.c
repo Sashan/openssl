@@ -74,10 +74,6 @@ static const char *whoami = "Server";
 static const char *ftpdata_ip = "127.0.0.1";
 static int quit;
 
-#ifndef __func__
-# define __func__ ""
-#endif
-
 static int select_alpn(SSL *ssl, const unsigned char **out,
                        unsigned char *out_len, const unsigned char *in,
                        unsigned int in_len, void *arg)
