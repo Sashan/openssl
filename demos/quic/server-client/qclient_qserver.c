@@ -1107,9 +1107,9 @@ int main(int argc, const char *argv[])
     else
         progname = argv[0];
 
-    if (strcmp(argv[0], "qserver") == 0)
+    if (strcmp(progname, "qserver") == 0)
         return qserver_main(argc, argv);
-    else if (strcmp(argv[0], "qclient") == 0)
+    else if (strcmp(progname, "qclient") == 0)
         return qclient_main(argc, argv);
 
     fprintf(stdout, "SPAM! SPAM! SPAM!\n");
