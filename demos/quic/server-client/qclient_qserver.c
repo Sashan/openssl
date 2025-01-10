@@ -71,6 +71,7 @@ static const unsigned char alpn_ossltest[] = {
     10, 'h', 'q', '-', 'i', 'n', 't', 'e', 'r', 'o', 'p',
 };
 static const char *whoami = "Server";
+static const char *ftpdata_ip = "127.0.0.1";
 static int quit;
 
 #ifndef __func__
@@ -880,14 +881,27 @@ static int qclient_main(int argc, const char *argv[])
     int chk;
     BIO_ADDR *bio_addr = NULL;
     struct in_addr ina = { 0 };
+    BIO_ADDRINFO *bai;
 
     whoami = "Client";
 
-    if (argc != 4) {
-        fprintf(stderr, "%s needs hostname:port servercert serverkey\n",
+    if (argc != 5) {
+        fprintf(stderr,
+                "%s needs hostname:port ftpdata_ip servercert serverkey\n",
                 argv[0]);
         return EXIT_FAILURE;
     }
+
+    ftpdata_ip = argv[2];
+    chk = BIO_lookup_ex(argv[2], NULL, BIO_LOOKUP_CLIENT, AF_UNSPEC,
+                        SOCK_DGRAM, IPPROTO_UDP, &bai);
+    if (chk == 0) {
+        fprintf(stderr, "ftpdata_ip (%s) seems to be invalid (%s)",
+                argv[2], ERR_reason_error_string(ERR_get_error()));
+        return EXIT_FAILURE;
+    }
+    BIO_ADDRINFO_free(bai);
+    bai = NULL;
 
     bio_addr = resolve_host_port(argv[1]);
     if (bio_addr == NULL)
