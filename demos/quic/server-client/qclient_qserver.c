@@ -203,6 +203,7 @@ static BIO *open_fake_file(const char *filename)
     char *fsize_str;
     BIO *bio_fakef = NULL;
     int chk;
+    size_t filename_sz;
 
     if (tmp_buf == NULL)
         goto done;
@@ -238,10 +239,11 @@ static BIO *open_fake_file(const char *filename)
     }
 
     /*
-     * fill buffer with 'OpenSSLOpenSSLOpenS...' pattern
+     * fill file/buffer with  pattern
      */
+    filename_sz = strlen(filename);
     for (i = 0; i < fsize; i++)
-        tmp_buf[i] = "OpenSSL"[i % (sizeof ("OpenSSL") - 1)];
+        tmp_buf[i] = filename[i % filename_sz];
 
     tmp_buf = NULL;
 
