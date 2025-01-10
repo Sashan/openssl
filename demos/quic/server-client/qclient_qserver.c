@@ -989,7 +989,7 @@ static int qclient_main(int argc, const char *argv[])
      * Here we create QUIC listener for data received in active-FTP like
      * fashion.
      */
-    ssl_ctx_data = create_ctx(argv[2], argv[3]);
+    ssl_ctx_data = create_ctx(argv[3], argv[4]);
     if (ssl_ctx_data == NULL) {
         fprintf(stderr, "[ Client ]: Failed to create data context\n");
         ERR_print_errors_fp(stderr);
