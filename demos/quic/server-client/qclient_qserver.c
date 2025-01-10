@@ -1000,8 +1000,7 @@ static int qclient_main(int argc, const char *argv[])
      * Create and bind a UDP socket. Note: we use port number port + 1 for
      * client's listener
      */
-    bio_sock_data = create_socket(htons(ntohs(BIO_ADDR_rawport(bio_addr)) + 1),
-                                  &ina);
+    bio_sock_data = create_socket(ntohs(BIO_ADDR_rawport(bio_addr)) + 1, &ina);
     if (bio_sock_data == NULL) {
         fprintf(stderr, "[ Client ] Failed to create socket\n");
         ERR_print_errors_fp(stderr);
