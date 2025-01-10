@@ -1060,54 +1060,121 @@ done:
     return err;
 }
 
-static int client_run_connections(SSL *ssl_qconn)
+static int client_run_connections(SSL_CTX *ssl_ctx, BIO_ADDR *bio_addr)
 {
-    SSL *ssl_qstream_cmd;
+    SSL *ssl_qconn = NULL;
+    SSL *ssl_qstream_cmd = NULL;
+    BIO *bio_sock = NULL;
+    struct in_addr ina = { 0 };
     const char *filenames[] = {
         "file_1024.txt",
         "file_2048.txt",
         "file_3076.txt",
         "file_4096.txt",
         "file_1234.txt",
+        "QUIT",
         NULL
     };
     const char **filename = filenames;
     int err = 0;
+    int chk;
 
     while (err == 0 && *filename != NULL) {
-        err = SSL_connect(ssl_qconn);
-        if (err != 1) {
+        ssl_qconn = SSL_new(ssl_ctx);
+        if (ssl_qconn == NULL) {
+            fprintf(stderr, "[ Client ]: could not create socket (%s)\n",
+                    ERR_reason_error_string(ERR_get_error()));
+            err = 1;
+            goto while_end;
+        }
+
+        bio_sock = create_socket(0, &ina);
+        if (bio_sock == NULL) {
+            fprintf(stderr, "[ Client ]: could not create socket (%s)\n",
+                ERR_reason_error_string(ERR_get_error()));
+            err = 1;
+            goto while_end;
+        }
+
+        SSL_set_bio(ssl_qconn, bio_sock, bio_sock);
+        bio_sock = NULL;
+
+        /*
+         * we are hq-interop client.
+         */
+        chk = SSL_set_alpn_protos(ssl_qconn, alpn_ossltest, sizeof(alpn_ossltest));
+        if (chk != 0) {
+            fprintf(stderr, "[ Client ] ]: SSL_set_alpn_protos failed %s\n",
+                    ERR_reason_error_string(ERR_get_error()));
+            goto while_end;
+        }
+
+        chk = SSL_set1_initial_peer_addr(ssl_qconn, bio_addr);
+        if (chk == 0) {
+            fprintf(stderr, "[ Client ]:  SSL_set1_initial_peer_addr (%s)\n",
+                    ERR_reason_error_string(ERR_get_error()));
+            err = 1;
+            goto while_end;
+        }
+
+        chk = SSL_connect(ssl_qconn);
+        if (chk != 1) {
             fprintf(stderr, "[ Client ]:  SSL_connect (%s)\n",
                     ERR_reason_error_string(ERR_get_error()));
             ERR_print_errors_fp(stderr);
-            continue;
-        }
-
-        ssl_qstream_cmd = SSL_new_stream(ssl_qconn, 0);
-        if (ssl_qstream_cmd == NULL) {
-            fprintf(stderr, "[ Client ] %s SSL_new_stream failed (%s)\n",
-                    __func__, ERR_reason_error_string(ERR_get_error()));
             err = 1;
-            continue;
+            goto while_end;
         }
 
-        fprintf(stdout, "( Client ) %s getting %s\n", __func__, *filename);
-        err = client_httplike_transfer(ssl_qstream_cmd, *filename);
+        if (strcmp(*filename, "QUIT") == 0) {
+            client_send_quit(ssl_qconn);
+            err = 0;
+        } else {
+            ssl_qstream_cmd = SSL_new_stream(ssl_qconn, 0);
+            if (ssl_qstream_cmd == NULL) {
+                fprintf(stderr, "[ Client ] %s SSL_new_stream failed (%s)\n",
+                        __func__, ERR_reason_error_string(ERR_get_error()));
+                err = 1;
+                goto while_end;
+            }
 
-        if (SSL_stream_conclude(ssl_qstream_cmd, 0) == 0)
-            fprintf(stderr, "[ Client ] %s) SSL_stream_conclude %s for %s\n",
-                    __func__, ERR_reason_error_string(ERR_get_error()),
-                    *filename);
+            fprintf(stdout, "( Client ) %s getting %s\n", __func__, *filename);
+            err = client_httplike_transfer(ssl_qstream_cmd, *filename);
+
+            if (SSL_stream_conclude(ssl_qstream_cmd, 0) == 0) {
+                fprintf(stderr, "[ Client ] %s) SSL_stream_conclude %s for %s\n",
+                        __func__, ERR_reason_error_string(ERR_get_error()),
+                        *filename);
+            }
+            SSL_free(ssl_qstream_cmd);
+            ssl_qstream_cmd = NULL;
+        }
 
         if (err == 0)
             filename++;
 
-        SSL_free(ssl_qstream_cmd);
-
         while (SSL_shutdown(ssl_qconn) != 1)
             continue;
+
+while_end:
+        SSL_free(ssl_qstream_cmd);
+        ssl_qstream_cmd = NULL;
+        /*
+         * Cleanup stuff from previous iteration
+         */
+        BIO_free(bio_sock);
+        bio_sock = NULL;
+        SSL_free(ssl_qconn);
+        ssl_qconn = NULL;
     }
 
+    /*
+     * Tell server to stop and finish.
+     */
+    client_send_quit(ssl_qconn);
+
+    while (SSL_shutdown(ssl_qconn) != 1)
+        continue;
     if (err != 0)
         fprintf(stderr, "[ Client ] %s could not get %s\n",
                 __func__, *filename);
@@ -1118,11 +1185,7 @@ static int client_run_connections(SSL *ssl_qconn)
 static int qclient_main(int argc, const char *argv[])
 {
     SSL_CTX *ssl_ctx = NULL;
-    BIO *bio_sock = NULL;
-    SSL *ssl_qconn = NULL;
     int err = 1;
-    int chk;
-    struct in_addr ina = { 0 };
     BIO_ADDR *bio_addr = NULL;
 
     whoami = "Client";
@@ -1146,43 +1209,6 @@ static int qclient_main(int argc, const char *argv[])
         goto done;
     }
 
-    bio_sock = create_socket(0, &ina);
-    if (bio_sock == NULL) {
-        fprintf(stderr, "[ Client ]: could not create socket (%s)\n",
-                ERR_reason_error_string(ERR_get_error()));
-        goto done;
-    }
-
-    ssl_qconn = SSL_new(ssl_ctx);
-    if (ssl_qconn == NULL) {
-        fprintf(stderr, "[ Client ]: could not create socket (%s)\n",
-                ERR_reason_error_string(ERR_get_error()));
-        goto done;
-    }
-
-    /*
-     * pass socket to ssl_qconn object, ssl_qconn uses the socket
-     * for reading and writing,
-     */
-    SSL_set_bio(ssl_qconn, bio_sock, bio_sock);
-    bio_sock = NULL;
-
-    chk = SSL_set1_initial_peer_addr(ssl_qconn, bio_addr);
-    if (chk == 0) {
-        fprintf(stderr, "[ Client ]:  SSL_set1_initial_peer_addr (%s)\n",
-                ERR_reason_error_string(ERR_get_error()));
-        goto done;
-    }
-
-    /*
-     * we are hq-interop client.
-     */
-    chk = SSL_set_alpn_protos(ssl_qconn, alpn_ossltest, sizeof(alpn_ossltest));
-    if (chk != 0) {
-        fprintf(stderr, "[ Client ] ]: SSL_set_alpn_protos failed %s\n",
-                ERR_reason_error_string(ERR_get_error()));
-        goto done;
-    }
 
     /*
      * passing NULL as a listener makes client to run like
@@ -1194,26 +1220,11 @@ static int qclient_main(int argc, const char *argv[])
      * over yet another QUIC connection. Client accepts the connection
      * from server on `ssl_qcon_listener` QUIC object.
      */
-    err = client_run_connections(ssl_qconn);
+    err = client_run_connections(ssl_ctx, bio_addr);
     if (err != 0)
         goto done;
 
-    chk = SSL_connect(ssl_qconn);
-    if (chk != 1) {
-        fprintf(stderr, "[ Client ]:  SSL_connect (%s)\n",
-                ERR_reason_error_string(ERR_get_error()));
-        ERR_print_errors_fp(stderr);
-    }
-    /*
-     * Tell server to stop and finish.
-     */
-    client_send_quit(ssl_qconn);
-
-    while (SSL_shutdown(ssl_qconn) != 1)
-        continue;
 done:
-    SSL_free(ssl_qconn);
-    BIO_free(bio_sock);
     SSL_CTX_free(ssl_ctx);
     BIO_ADDR_free(bio_addr);
 
