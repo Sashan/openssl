@@ -1041,11 +1041,6 @@ static int qclient_listener_main(int argc, const char *argv[])
     if (err == 0)
         err = client_run(ssl_qconn, ssl_qconn_listener, bio_addr);
 
-    /*
-     * Tell server to stop and finish.
-     */
-    client_send_quit(ssl_qconn);
-
     while (SSL_shutdown(ssl_qconn) != 1)
         continue;
 done:
