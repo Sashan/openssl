@@ -15,6 +15,7 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <signal.h>
+#include <time.h>
 
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
@@ -74,12 +75,34 @@ static const char *whoami = "Server";
 static const char *ftpdata_ip = "127.0.0.1";
 static int quit;
 
+struct timespec mono_start_tv;
+
+static char *runtime(char *buf, size_t buf_sz)
+{
+    struct timespec mono_now_tv;
+    long tmp;
+
+    clock_gettime(CLOCK_MONOTONIC, &mono_now_tv);
+    if (mono_now_tv.tv_nsec < mono_start_tv.tv_nsec) {
+        tmp = mono_now_tv.tv_nsec - mono_start_tv.tv_nsec;
+        mono_now_tv.tv_sec -= (mono_start_tv.tv_sec + 1);
+        mono_now_tv.tv_nsec = tmp * -1;
+    } else {
+        mono_now_tv.tv_sec -= mono_start_tv.tv_sec;
+        mono_now_tv.tv_nsec -= mono_start_tv.tv_nsec;
+    }
+
+    snprintf(buf, buf_sz, "{ %lld.%06ld }", (int64_t)mono_now_tv.tv_sec,
+             mono_now_tv.tv_nsec);
+    return buf;
+}
+
 static int select_alpn(SSL *ssl, const unsigned char **out,
                        unsigned char *out_len, const unsigned char *in,
                        unsigned int in_len, void *arg)
 {
     if (SSL_select_next_proto((unsigned char **)out, out_len, alpn_ossltest,
-                              sizeof(alpn_ossltest), in,
+                              sizeof (alpn_ossltest), in,
                               in_len) == OPENSSL_NPN_NEGOTIATED)
         return SSL_TLSEXT_ERR_OK;
     return SSL_TLSEXT_ERR_ALERT_FATAL;
@@ -89,6 +112,7 @@ static SSL_CTX *create_ctx(const char *cert_path, const char *key_path)
 {
     SSL_CTX *ssl_ctx;
     int chk;
+    char tbuf[80];
 
     /*
      * If cert and keys are missing we assume a QUIC client,
@@ -97,7 +121,8 @@ static SSL_CTX *create_ctx(const char *cert_path, const char *key_path)
     if (cert_path == NULL && key_path == NULL) {
         ssl_ctx = SSL_CTX_new(OSSL_QUIC_client_method());
         if (ssl_ctx == NULL) {
-            fprintf(stderr, "[ %s ] %s SSL_CTX_new %s\n", whoami, __func__,
+            fprintf(stderr, "[ %s ] %s %s SSL_CTX_new %s\n", whoami,
+                    runtime(tbuf, sizeof (tbuf)), __func__,
                     ERR_reason_error_string(ERR_get_error()));
             goto err;
         }
@@ -105,7 +130,8 @@ static SSL_CTX *create_ctx(const char *cert_path, const char *key_path)
     } else {
         ssl_ctx = SSL_CTX_new(OSSL_QUIC_server_method());
         if (ssl_ctx == NULL) {
-            fprintf(stderr, "[ %s ] %s SSL_CTX_new %s\n", whoami, __func__,
+            fprintf(stderr, "[ %s ] %s %s SSL_CTX_new %s\n", whoami,
+                    runtime(tbuf, sizeof (tbuf)),  __func__,
                     ERR_reason_error_string(ERR_get_error()));
             goto err;
         }
@@ -115,8 +141,9 @@ static SSL_CTX *create_ctx(const char *cert_path, const char *key_path)
     if (cert_path != NULL) {
         chk = SSL_CTX_use_certificate_chain_file(ssl_ctx, cert_path);
         if (chk == 0) {
-            fprintf(stderr, "[ %s ] %s SSL_CTX_use_certificate_chain_file(%s) %s\n",
-                    whoami, __func__, cert_path,
+            fprintf(stderr, "[ %s ] %s %s "
+                    "SSL_CTX_use_certificate_chain_file(%s) %s\n", whoami,
+                    runtime(tbuf, sizeof (tbuf)), __func__, cert_path,
                     ERR_reason_error_string(ERR_get_error()));
             goto err;
         }
@@ -125,8 +152,8 @@ static SSL_CTX *create_ctx(const char *cert_path, const char *key_path)
     if (key_path != NULL) {
         chk = SSL_CTX_use_PrivateKey_file(ssl_ctx, key_path, SSL_FILETYPE_PEM);
         if (chk == 0) {
-            fprintf(stderr, "[ %s ] %s SSL_CTX_use_PrivateKey(%s)  %s\n",
-                    whoami, __func__, key_path,
+            fprintf(stderr, "[ %s ] %s %s SSL_CTX_use_PrivateKey(%s)  %s\n",
+                    whoami, runtime(tbuf, sizeof (tbuf)), __func__, key_path,
                     ERR_reason_error_string(ERR_get_error()));
             goto err;
         }
@@ -147,10 +174,12 @@ static BIO *create_socket(uint16_t port, struct in_addr *ina)
     struct sockaddr_in sa;
     BIO *bio_sock = NULL;
     int chk;
+    char tbuf[80];
 
     fd = BIO_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP, 0);
     if (fd < 0) {
-        fprintf(stderr, "[ %s ] %s cannot BIO_socket %s", whoami, __func__,
+        fprintf(stderr, "[ %s ] %s %s cannot BIO_socket %s", whoami,
+                runtime(tbuf, sizeof (tbuf)), __func__,
                 ERR_reason_error_string(ERR_get_error()));
         goto err;
     }
@@ -158,23 +187,26 @@ static BIO *create_socket(uint16_t port, struct in_addr *ina)
     sa.sin_family = AF_INET;
     sa.sin_port = htons(port);
     sa.sin_addr = *ina;
-    chk = bind(fd, (const struct sockaddr *)&sa, sizeof(sa));
+    chk = bind(fd, (const struct sockaddr *)&sa, sizeof (sa));
     if (chk != 0) {
-        fprintf(stderr, "[ %s ] %s bind(%d) %s\n", whoami, __func__, port,
+        fprintf(stderr, "[ %s ] %s %s bind(%d) %s\n", whoami,
+                runtime(tbuf, sizeof (tbuf)), __func__, port,
                 strerror(errno));
         goto err;
     }
 
     bio_sock = BIO_new(BIO_s_datagram());
     if (bio_sock == NULL) {
-        fprintf(stderr, "[ %s ] %s BIO_new %s\n", whoami, __func__,
+        fprintf(stderr, "[ %s ] %s %s BIO_new %s\n", whoami,
+                runtime(tbuf, sizeof (tbuf)), __func__,
                 ERR_reason_error_string(ERR_get_error()));
         goto err;
     }
 
     chk = BIO_set_fd(bio_sock, fd, BIO_CLOSE);
     if (chk == 0) {
-        fprintf(stderr, "[ %s ] %s BIO_set_fd %s\n", whoami, __func__,
+        fprintf(stderr, "[ %s ] %s %s BIO_set_fd %s\n", whoami,
+                runtime(tbuf, sizeof (tbuf)), __func__,
                 ERR_reason_error_string(ERR_get_error()));
         goto err;
     }
@@ -270,11 +302,14 @@ static void send_file(SSL *ssl_qstream, const char *filename)
     size_t bytes_written = 0;
     size_t offset = 0;
     int chk;
+    char tbuf[80];
 
-    fprintf(stdout, "( Server ) Serving %s\n", filename);
+    fprintf(stdout, "( Server ) %s Serving %s\n",
+            runtime(tbuf, sizeof (tbuf)),  filename);
     bio_fakef = open_fake_file(filename);
     if (bio_fakef == NULL) {
-        fprintf(stderr, "[ Server ] Unable to open %s\n", filename);
+        fprintf(stderr, "[ Server ] %s Unable to open %s\n",
+                runtime(tbuf, sizeof (tbuf)),  filename);
         ERR_print_errors_fp(stderr);
         goto done;
     }
@@ -285,7 +320,8 @@ static void send_file(SSL *ssl_qstream, const char *filename)
         if (chk == 0) {
             chk = BIO_eof(bio_fakef);
             if (chk == 0) {
-                fprintf(stderr, "[ Server ] Failed to read from %s\n", filename);
+                fprintf(stderr, "[ Server ] %s Failed to read from %s\n",
+                        runtime(tbuf, sizeof (tbuf)), filename);
                 ERR_print_errors_fp(stderr);
                 goto done;
             } else {
@@ -301,12 +337,14 @@ static void send_file(SSL *ssl_qstream, const char *filename)
                 chk = SSL_get_error(ssl_qstream, chk);
                 switch (chk) {
                 case SSL_ERROR_WANT_WRITE:
-                    fprintf(stderr, "[ Server ] %s Send buffer full, retrying\n",
-                            __func__);
+                    fprintf(stderr, "[ Server ] %s %s Send buffer full, retrying\n",
+                            runtime(tbuf, sizeof (tbuf)), __func__);
                     continue;
                 default:
-                    fprintf(stderr, "[ Server ] %s Unhandled error cause %s\n",
-                            __func__, ERR_reason_error_string(chk));
+                    fprintf(stderr,
+                            "[ Server ] %s %s Unhandled error cause %s\n",
+                            runtime(tbuf, sizeof (tbuf)), __func__,
+                            ERR_reason_error_string(chk));
                     goto done;
                 }
             }
@@ -349,16 +387,18 @@ static void process_new_stream(SSL *ssl_qlistener, SSL *ssl_qstream)
     BIO_ADDRINFO *bai = NULL;
     SSL *ssl_qconn = NULL;
     int chk;
+    char tbuf[80];
 
     memset(buf, 0, BUF_SIZE);
-    chk = SSL_read_ex(ssl_qstream, buf, sizeof(buf) - 1, &nread);
+    chk = SSL_read_ex(ssl_qstream, buf, sizeof (buf) - 1, &nread);
     if (chk == 0) {
         quit = 1;
         SSL_free(ssl_qstream);
         return;
     }
 
-    fprintf(stdout, "(Server) Request is %s\n", req);
+    fprintf(stdout, "(Server) %s Request is %s\n",
+            runtime(tbuf, sizeof (tbuf)), req);
 
     /*
      * This is a shortcut to handle QUIT command sent by client.
@@ -399,16 +439,20 @@ static void process_new_stream(SSL *ssl_qlistener, SSL *ssl_qstream)
             chk = BIO_lookup_ex(dst_host, dst_port_str, BIO_LOOKUP_CLIENT,
                                 AF_INET, SOCK_DGRAM, 0, &bai);
             if (chk == 0) {
-                fprintf(stderr, "[ Server ] %s BIO_lookup_ex(%s, %s) error (%s)\n",
-                        __func__, dst_host, dst_port_str, strerror(errno));
+                fprintf(stderr,
+                        "[ Server ] %s %s BIO_lookup_ex(%s, %s) error (%s)\n",
+                        runtime(tbuf, sizeof (tbuf)), __func__,
+                        dst_host, dst_port_str, strerror(errno));
                 quit = 1;
                 goto done;
             }
 
             ssl_qconn = SSL_new_from_listener(ssl_qlistener, 0);
             if (ssl_qconn == NULL) {
-                fprintf(stderr, "[ Server ] %s SSL_new_from_listener error (%s)\n",
-                        __func__, ERR_reason_error_string(ERR_get_error()));
+                fprintf(stderr,
+                        "[ Server ] %s %s SSL_new_from_listener error (%s)\n",
+                        runtime(tbuf, sizeof (tbuf)), __func__,
+                        ERR_reason_error_string(ERR_get_error()));
                 quit = 1;
                 goto done;
             }
@@ -416,15 +460,20 @@ static void process_new_stream(SSL *ssl_qlistener, SSL *ssl_qstream)
             chk = SSL_set1_initial_peer_addr(ssl_qconn,
                                              BIO_ADDRINFO_address(bai));
             if (chk == 0) {
-                fprintf(stderr, "[ Server ] %s SSL_new_from_listener error (%s)\n",
-                        __func__, ERR_reason_error_string(ERR_get_error()));
+                fprintf(stderr,
+                        "[ Server ] %s %s SSL_new_from_listener error (%s)\n",
+                        runtime(tbuf, sizeof (tbuf)), __func__,
+                        ERR_reason_error_string(ERR_get_error()));
                 quit = 1;
                 goto done;
             }
 
-            chk = SSL_set_alpn_protos(ssl_qconn, alpn_ossltest, sizeof(alpn_ossltest));
+            chk = SSL_set_alpn_protos(ssl_qconn, alpn_ossltest,
+                                      sizeof (alpn_ossltest));
             if (chk != 0) {
-                fprintf(stderr, "[ Client ] %s SSL_set_alpn_protos failed %s\n",
+                fprintf(stderr,
+                        "[ Client ] %s %s SSL_set_alpn_protos failed %s\n",
+                        runtime(tbuf, sizeof (tbuf)),
                         __func__, ERR_reason_error_string(ERR_get_error()));
                 quit = 1;
                 goto done;
@@ -432,9 +481,10 @@ static void process_new_stream(SSL *ssl_qlistener, SSL *ssl_qstream)
 
             chk = SSL_connect(ssl_qconn);
             if (chk != 1) {
-                fprintf(stderr, "[ Server ] %s SSL_connect() to %s:%s failed (%s)\n",
-                        __func__, dst_host, dst_port_str,
-                        ERR_reason_error_string(ERR_get_error()));
+                fprintf(stderr,
+                       "[ Server ] %s %s SSL_connect() to %s:%s failed (%s)\n",
+                        runtime(tbuf, sizeof (tbuf)), __func__, dst_host,
+                        dst_port_str, ERR_reason_error_string(ERR_get_error()));
                 quit = 1;
                 goto done;
             }
@@ -442,21 +492,25 @@ static void process_new_stream(SSL *ssl_qlistener, SSL *ssl_qstream)
             SSL_free(ssl_qstream);
             ssl_qstream = SSL_new_stream(ssl_qconn, 0);
             if (ssl_qstream == NULL) {
-                fprintf(stderr, "[ Server ] %s SSL_new_stream() to %s:%s failed (%s)\n",
+                fprintf(stderr, "[ Server ] %s %s SSL_new_stream() "
+                        "to %s:%s failed (%s)\n", runtime(tbuf, sizeof (tbuf)),
                         __func__, dst_host, dst_port_str,
                         ERR_reason_error_string(ERR_get_error()));
                 quit = 1;
                 goto done;
             }
-            fprintf(stdout, "( Server ) got stream\n");
+            fprintf(stdout, "( Server ) %s got stream\n",
+                    runtime(tbuf, sizeof (tbuf)));
         }
     }
 
     send_file(ssl_qstream, path);
     chk = SSL_stream_conclude(ssl_qstream, 0);
     if (chk == 0) {
-        fprintf(stdout, "( Server ) %s SSL_stream_conclude(ssl_qstream) %s\n",
-                __func__, ERR_reason_error_string(ERR_get_error()));
+        fprintf(stdout,
+                "( Server ) %s %s SSL_stream_conclude(ssl_qstream) %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__,
+                ERR_reason_error_string(ERR_get_error()));
     }
 
 done:
@@ -483,6 +537,7 @@ static int run_quic_server(SSL_CTX *ssl_ctx, BIO **bio_sock)
     int chk;
     SSL *ssl_qlistener, *ssl_qconn, *ssl_qstream;
     unsigned long errcode;
+    char tbuf[80];
 
     ssl_qlistener = SSL_new_listener(ssl_ctx, 0);
     if (ssl_qlistener == NULL)
@@ -498,21 +553,26 @@ static int run_quic_server(SSL_CTX *ssl_ctx, BIO **bio_sock)
     while (quit == 0) {
         ERR_clear_error();
 
-        fprintf(stdout, "( Server ) Waiting for connection\n");
+        fprintf(stdout, "( Server ) %s Waiting for connection\n",
+                runtime(tbuf, sizeof (tbuf)));
         ssl_qconn = SSL_accept_connection(ssl_qlistener, 0);
         if (ssl_qconn == NULL) {
-            fprintf(stderr, "[ Server ] %s SSL_accept_connection %s\n",
-                    __func__, ERR_reason_error_string(ERR_get_error()));
+            fprintf(stderr, "[ Server ] %s %s SSL_accept_connection %s\n",
+                    runtime(tbuf, sizeof (tbuf)), __func__,
+                    ERR_reason_error_string(ERR_get_error()));
             goto err;
         }
-        fprintf(stdout, "( Server ) Accepted new connection\n");
+        fprintf(stdout, "( Server ) %s Accepted new connection\n",
+                runtime(tbuf, sizeof (tbuf)));
 
         chk = SSL_set_incoming_stream_policy(ssl_qconn,
                                              SSL_INCOMING_STREAM_POLICY_ACCEPT,
                                              0);
         if (chk == 0) {
-            fprintf(stderr, "[ Server ] %s SSL_set_incoming_stream_policy %s\n",
-                    __func__, ERR_reason_error_string(ERR_get_error()));
+            fprintf(stderr,
+                    "[ Server ] %s %s SSL_set_incoming_stream_policy %s\n",
+                    runtime(tbuf, sizeof (tbuf)), __func__,
+                    ERR_reason_error_string(ERR_get_error()));
             goto close_conn;
         }
 
@@ -520,8 +580,9 @@ static int run_quic_server(SSL_CTX *ssl_ctx, BIO **bio_sock)
             ssl_qstream = SSL_accept_stream(ssl_qconn, 0);
             if (ssl_qstream == NULL) {
                 errcode = ERR_get_error();
-                fprintf(stderr, "[ Server ] %s SSL_accept_stream %s\n",
-                        __func__, ERR_reason_error_string(errcode));
+                fprintf(stderr, "[ Server ] %s %s SSL_accept_stream %s\n",
+                        runtime(tbuf, sizeof (tbuf)), __func__,
+                        ERR_reason_error_string(errcode));
                 break;
             }
             process_new_stream(ssl_qlistener, ssl_qstream);
@@ -553,31 +614,37 @@ static int client_stream_transfer(SSL *ssl_qstream, size_t expected,
     char buf[1024];
     size_t transfered, x;
     int chk;
+    char tbuf[80];
 
     transfered = 0;
     while (transfered < expected) {
-        fprintf(stdout, "( Client ) reading from stream ... \n");
-        chk = SSL_read_ex(ssl_qstream, buf, sizeof(buf), &x);
+        fprintf(stdout, "( Client ) %s reading from stream ... \n",
+                runtime(tbuf, sizeof (tbuf)));
+        chk = SSL_read_ex(ssl_qstream, buf, sizeof (buf), &x);
         if (chk == 0) {
-            fprintf(stderr, "[ Client ] %s SSL_read_ex(%s) { %zu } %s\n",
-                    __func__, filename, transfered,
-                    ERR_reason_error_string(ERR_get_error()));
+            fprintf(stderr, "[ Client ] %s %s SSL_read_ex(%s) { %zu } %s\n",
+                    runtime(tbuf, sizeof (tbuf)),  __func__, filename,
+                    transfered, ERR_reason_error_string(ERR_get_error()));
             return 1;
         }
-        fprintf(stdout, "( Client ) got %zu bytes\n", x);
+        fprintf(stdout, "( Client ) %s got %zu bytes\n",
+                runtime(tbuf, sizeof (tbuf)), x);
         transfered += x;
     }
 
     if (transfered != expected) {
-        fprintf(stderr, "[ Client ] %s transfer %s incomplete, missing %ld\n",
-                __func__, filename, (long)(expected - transfered));
+        fprintf(stderr,
+                "[ Client ] %s %s transfer %s incomplete, missing %ld\n",
+                runtime(tbuf, sizeof (tbuf)), __func__, filename,
+                (long)(expected - transfered));
         return 1;
     }
 
-    chk = SSL_read_ex(ssl_qstream, buf, sizeof(buf), &x);
+    chk = SSL_read_ex(ssl_qstream, buf, sizeof (buf), &x);
     if (chk != 0) {
-        fprintf(stderr, "[ Client ] %s there is more than %zu to receive in %s\n",
-                __func__, expected, filename);
+        fprintf(stderr,
+                "[ Client ] %s %s there is more than %zu to receive in %s\n",
+                 runtime(tbuf, sizeof (tbuf)), __func__, expected, filename);
         return 1;
     }
 
@@ -595,37 +662,39 @@ static int client_httplike_transfer(SSL *ssl_qstream, const char *filename)
     size_t fsize, transfered;
     int err = 1;
     int chk;
+    char tbuf[80];
 
-    strncpy(buf, filename, sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
+    strncpy(buf, filename, sizeof (buf) - 1);
+    buf[sizeof (buf) - 1] = '\0';
     fsize_str = strchr(buf, '_');
     if (fsize_str == NULL) {
-        fprintf(stderr, "[ Client ] %s no '_' found in %s\n",
-                __func__, filename);
+        fprintf(stderr, "[ Client ] %s %s no '_' found in %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__, filename);
         goto done;
     }
 
     fsize_str++;
     p = strchr(fsize_str, '.');
     if (p == NULL) {
-        fprintf(stderr, "[ Client ] %s no '.' found in %s\n",
-                __func__, filename);
+        fprintf(stderr, "[ Client ] %s %s no '.' found in %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__,
+                filename);
         goto done;
     }
     *p = '\0';
 
     fsize = (size_t)atoi(fsize_str);
     if ((fsize != 0) && (fsize >= FILE_MAX_SZ)) {
-        fprintf(stderr, "[ Client ] %s unexpected length in %s\n",
-                __func__, filename);
+        fprintf(stderr, "[ Client ] %s %s unexpected length in %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__, filename);
         goto done;
     }
 
-    snprintf(buf, sizeof(buf), "GET /%s\r\n", filename);
+    snprintf(buf, sizeof (buf), "GET /%s\r\n", filename);
     chk = SSL_write_ex(ssl_qstream, buf, strlen(buf), &transfered);
     if (chk == 0) {
-        fprintf(stderr, "[ Client ] %s SSL_write_ex('GET /%s') failed %s\n",
-                __func__, filename,
+        fprintf(stderr, "[ Client ] %s %s SSL_write_ex('GET /%s') failed %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__, filename,
                 ERR_reason_error_string(ERR_get_error()));
         goto done;
     }
@@ -658,27 +727,30 @@ static int client_ftplike_transfer(SSL *ssl_qstream_cmd,
     int chk;
     char *hostip_str = NULL;
     char *port_str = NULL;
+    char tbuf[80];
 
-    strncpy(buf, filename, sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
+    strncpy(buf, filename, sizeof (buf) - 1);
+    buf[sizeof (buf) - 1] = '\0';
     fsize_str = strchr(buf, '_');
     if (fsize_str == NULL) {
-        fprintf(stderr, "[ Client ] no '_' found in %s\n", filename);
+        fprintf(stderr, "[ Client ] %s no '_' found in %s\n",
+                runtime(tbuf, sizeof (tbuf)), filename);
         goto done;
     }
 
     fsize_str++;
     p = strchr(fsize_str, '.');
     if (p == NULL) {
-        fprintf(stderr, "[ Client ] no '.' found in %s\n", filename);
+        fprintf(stderr, "[ Client ] %s no '.' found in %s\n",
+                runtime(tbuf, sizeof (tbuf)), filename);
         goto done;
     }
     *p = '\0';
 
     fsize = (size_t)atoi(fsize_str);
     if (fsize <= 0) {
-        fprintf(stderr, "[ Client ] %s unexpected length in %s\n",
-                __func__, filename);
+        fprintf(stderr, "[ Client ] %s %s unexpected length in %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__, filename);
         goto done;
     }
 
@@ -689,20 +761,23 @@ static int client_ftplike_transfer(SSL *ssl_qstream_cmd,
      */
     hostip_str = BIO_ADDR_hostname_string(bio_addr, 1);
     if (hostip_str == NULL) {
-        fprintf(stderr, "[ Client ] BIO_ADDR_hostname_string failed\n");
+        fprintf(stderr, "[ Client ] %s BIO_ADDR_hostname_string failed\n",
+                runtime(tbuf, sizeof (tbuf)));
         goto done;
     }
     port_str = BIO_ADDR_service_string(bio_addr, 1);
     if (port_str == NULL) {
-        fprintf(stderr, "[ Client ] BIO_ADDR_service_string failed\n");
+        fprintf(stderr, "[ Client ] %s BIO_ADDR_service_string failed\n",
+                runtime(tbuf, sizeof (tbuf)));
         goto done;
     }
-    snprintf(buf, sizeof(buf), "GET /%s:%u/%s\r\n", ftpdata_ip,
+    snprintf(buf, sizeof (buf), "GET /%s:%u/%s\r\n", ftpdata_ip,
              atoi(port_str) + 1, filename);
     chk = SSL_write_ex(ssl_qstream_cmd, buf, strlen(buf), &transfered);
     if (chk == 0) {
-        fprintf(stderr, "[ Client ] %s SSL_write_ex() failed %s\n",
-                __func__, ERR_reason_error_string(ERR_get_error()));
+        fprintf(stderr, "[ Client ] %s %s SSL_write_ex() failed %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__,
+                ERR_reason_error_string(ERR_get_error()));
         goto done;
     }
     /*
@@ -711,8 +786,10 @@ static int client_ftplike_transfer(SSL *ssl_qstream_cmd,
      */
     chk = SSL_stream_conclude(ssl_qstream_cmd, 0);
     if (chk == 0) {
-        fprintf(stdout, "( Client ) %s SSL_stream_conclude(ssl_qstream) %s\n",
-                __func__, ERR_reason_error_string(ERR_get_error()));
+        fprintf(stdout,
+                "( Client ) %s %s SSL_stream_conclude(ssl_qstream) %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__,
+                ERR_reason_error_string(ERR_get_error()));
     }
 
     /*
@@ -720,8 +797,9 @@ static int client_ftplike_transfer(SSL *ssl_qstream_cmd,
      */
     ssl_qconn_data = SSL_accept_connection(ssl_qconn_listener, 0);
     if (ssl_qconn_data == NULL) {
-        fprintf(stderr, "[ Client ] %s SSL_accept_connectio failed %s\n",
-                __func__, ERR_reason_error_string(ERR_get_error()));
+        fprintf(stderr, "[ Client ] %s %s SSL_accept_connectio failed %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__,
+                ERR_reason_error_string(ERR_get_error()));
         goto done;
     }
     /*
@@ -729,8 +807,9 @@ static int client_ftplike_transfer(SSL *ssl_qstream_cmd,
      */
     ssl_qstream_data = SSL_accept_stream(ssl_qconn_data, 0);
     if (ssl_qstream_data == NULL) {
-        fprintf(stderr, "[ Client ] %s SSL_new_stream failed %s\n",
-                __func__, ERR_reason_error_string(ERR_get_error()));
+        fprintf(stderr, "[ Client ] %s %s SSL_new_stream failed %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__,
+                ERR_reason_error_string(ERR_get_error()));
         ERR_print_errors_fp(stderr);
         goto done;
     }
@@ -740,8 +819,10 @@ static int client_ftplike_transfer(SSL *ssl_qstream_cmd,
     if (err == 0) {
         chk = SSL_stream_conclude(ssl_qstream_data, 0);
         if (chk == 0) {
-            fprintf(stdout, "( Client ) %s SSL_stream_conclude(ssl_qstream_data) %s\n",
-                    __func__, ERR_reason_error_string(ERR_get_error()));
+            fprintf(stdout, "( Client ) %s %s "
+                    "SSL_stream_conclude(ssl_qstream_data) %s\n",
+                    runtime(tbuf, sizeof (tbuf)), __func__,
+                    ERR_reason_error_string(ERR_get_error()));
         }
     }
 done:
@@ -761,23 +842,29 @@ static void client_send_quit(SSL *ssl_qconn)
     SSL *ssl_qstream;
     int chk;
     size_t w;
+    char tbuf[80];
 
     ssl_qstream = SSL_new_stream(ssl_qconn, SSL_STREAM_FLAG_UNI);
     if (ssl_qstream != NULL) {
-        chk = SSL_write_ex(ssl_qstream, "QUIT\r\n", sizeof("QUIT\r\n") - 1, &w);
+        chk = SSL_write_ex(ssl_qstream, "QUIT\r\n", sizeof ("QUIT\r\n") - 1, &w);
         if (chk == 0) {
-            fprintf(stdout, "( Client ) %s SSL_write_ex(ssl_qstream, 'QUIT')) %s\n",
-                    __func__, ERR_reason_error_string(ERR_get_error()));
+            fprintf(stdout, "( Client ) %s %s "
+                    "SSL_write_ex(ssl_qstream, 'QUIT')) %s\n",
+                    runtime(tbuf, sizeof (tbuf)), __func__,
+                    ERR_reason_error_string(ERR_get_error()));
         }
         chk = SSL_stream_conclude(ssl_qstream, 0);
         if (chk == 0) {
-            fprintf(stdout, "( Client ) %s SSL_stream_conclude(ssl_qstream) %s\n",
-                    __func__, ERR_reason_error_string(ERR_get_error()));
+            fprintf(stdout,
+                    "( Client ) %s %s SSL_stream_conclude(ssl_qstream) %s\n",
+                    runtime(tbuf, sizeof (tbuf)), __func__,
+                    ERR_reason_error_string(ERR_get_error()));
         }
         SSL_free(ssl_qstream);
     } else {
-        fprintf(stderr, "[ Client ] %s can not create stream (%s)\n",
-                __func__, ERR_reason_error_string(ERR_get_error()));
+        fprintf(stderr, "[ Client ] %s %s can not create stream (%s)\n",
+                runtime(tbuf, sizeof (tbuf)), __func__,
+                ERR_reason_error_string(ERR_get_error()));
     }
 }
 
@@ -795,17 +882,20 @@ static int client_run(SSL *ssl_qconn, SSL *ssl_qconn_listener,
     };
     const char **filename = filenames;
     int err = 0;
+    char tbuf[80];
 
     while (err == 0 && *filename != NULL) {
         ssl_qstream_cmd = SSL_new_stream(ssl_qconn, 0);
         if (ssl_qstream_cmd == NULL) {
-            fprintf(stderr, "[ Client ] %s SSL_new_stream failed (%s)\n",
-                    __func__, ERR_reason_error_string(ERR_get_error()));
+            fprintf(stderr, "[ Client ] %s %s SSL_new_stream failed (%s)\n",
+                    runtime(tbuf, sizeof (tbuf)), __func__,
+                    ERR_reason_error_string(ERR_get_error()));
             err = 1;
             continue;
         }
 
-        fprintf(stdout, "( Client ) %s getting %s\n", __func__, *filename);
+        fprintf(stdout, "( Client ) %s %s getting %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__, *filename);
         if (ssl_qconn_listener == NULL)
             err = client_httplike_transfer(ssl_qstream_cmd, *filename);
         else
@@ -813,8 +903,10 @@ static int client_run(SSL *ssl_qconn, SSL *ssl_qconn_listener,
                                           bio_addr, *filename);
 
         if (SSL_stream_conclude(ssl_qstream_cmd, 0) == 0)
-            fprintf(stderr, "[ Client ] %s(%s) SSL_stream_conclude %s for %s\n",
-                    __func__, ssl_qconn_listener == NULL ? "http-like" : "ftp-like",
+            fprintf(stderr,
+                    "[ Client ] %s %s(%s) SSL_stream_conclude %s for %s\n",
+                    runtime(tbuf, sizeof (tbuf)), __func__,
+                    ssl_qconn_listener == NULL ? "http-like" : "ftp-like",
                     ERR_reason_error_string(ERR_get_error()), *filename);
 
         if (err == 0)
@@ -824,8 +916,8 @@ static int client_run(SSL *ssl_qconn, SSL *ssl_qconn_listener,
     }
 
     if (err != 0)
-        fprintf(stderr, "[ Client ] %s could not get %s\n",
-                __func__, *filename);
+        fprintf(stderr, "[ Client ] %s %s could not get %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__, *filename);
 
     return err;
 }
@@ -937,21 +1029,21 @@ static int qclient_listener_main(int argc, const char *argv[])
      */
     ssl_ctx = create_ctx(NULL, NULL);
     if (ssl_ctx == NULL) {
-        fprintf(stderr, "[ Client ]: Failed to create context (%s)\n",
+        fprintf(stderr, "[ Client ] Failed to create context (%s)\n",
                 ERR_reason_error_string(ERR_get_error()));
         goto done;
     }
 
     bio_sock = create_socket(0, &ina);
     if (bio_sock == NULL) {
-        fprintf(stderr, "[ Client ]: could not create socket (%s)\n",
+        fprintf(stderr, "[ Client ] could not create socket (%s)\n",
                 ERR_reason_error_string(ERR_get_error()));
         goto done;
     }
 
     ssl_qconn = SSL_new(ssl_ctx);
     if (ssl_qconn == NULL) {
-        fprintf(stderr, "[ Client ]: could not create socket (%s)\n",
+        fprintf(stderr, "[ Client ] could not create socket (%s)\n",
                 ERR_reason_error_string(ERR_get_error()));
         goto done;
     }
@@ -965,7 +1057,7 @@ static int qclient_listener_main(int argc, const char *argv[])
 
     chk = SSL_set1_initial_peer_addr(ssl_qconn, bio_addr);
     if (chk == 0) {
-        fprintf(stderr, "[ Client ]:  SSL_set1_initial_peer_addr (%s)\n",
+        fprintf(stderr, "[ Client ] SSL_set1_initial_peer_addr (%s)\n",
                 ERR_reason_error_string(ERR_get_error()));
         goto done;
     }
@@ -973,16 +1065,16 @@ static int qclient_listener_main(int argc, const char *argv[])
     /*
      * we are hq-interop client.
      */
-    chk = SSL_set_alpn_protos(ssl_qconn, alpn_ossltest, sizeof(alpn_ossltest));
+    chk = SSL_set_alpn_protos(ssl_qconn, alpn_ossltest, sizeof (alpn_ossltest));
     if (chk != 0) {
-        fprintf(stderr, "[ Client ] ]: SSL_set_alpn_protos failed %s\n",
+        fprintf(stderr, "[ Client ] SSL_set_alpn_protos failed %s\n",
                 ERR_reason_error_string(ERR_get_error()));
         goto done;
     }
 
     chk = SSL_connect(ssl_qconn);
     if (chk != 1) {
-        fprintf(stderr, "[ Client ]:  SSL_connect (%s)\n",
+        fprintf(stderr, "[ Client ] SSL_connect (%s)\n",
                 ERR_reason_error_string(ERR_get_error()));
         ERR_print_errors_fp(stderr);
         goto done;
@@ -994,7 +1086,7 @@ static int qclient_listener_main(int argc, const char *argv[])
      */
     ssl_ctx_data = create_ctx(argv[3], argv[4]);
     if (ssl_ctx_data == NULL) {
-        fprintf(stderr, "[ Client ]: Failed to create data context\n");
+        fprintf(stderr, "[ Client ] Failed to create data context\n");
         ERR_print_errors_fp(stderr);
         goto done;
     }
@@ -1078,11 +1170,13 @@ static int client_run_connections(SSL_CTX *ssl_ctx, BIO_ADDR *bio_addr)
     const char **filename = filenames;
     int err = 0;
     int chk;
+    char tbuf[80];
 
     while (err == 0 && *filename != NULL) {
         ssl_qconn = SSL_new(ssl_ctx);
         if (ssl_qconn == NULL) {
-            fprintf(stderr, "[ Client ]: could not create socket (%s)\n",
+            fprintf(stderr, "[ Client ] %s could not create socket (%s)\n",
+                    runtime(tbuf, sizeof (tbuf)),
                     ERR_reason_error_string(ERR_get_error()));
             err = 1;
             goto while_end;
@@ -1090,7 +1184,8 @@ static int client_run_connections(SSL_CTX *ssl_ctx, BIO_ADDR *bio_addr)
 
         bio_sock = create_socket(0, &ina);
         if (bio_sock == NULL) {
-            fprintf(stderr, "[ Client ]: could not create socket (%s)\n",
+            fprintf(stderr, "[ Client ] %s could not create socket (%s)\n",
+                runtime(tbuf, sizeof (tbuf)),
                 ERR_reason_error_string(ERR_get_error()));
             err = 1;
             goto while_end;
@@ -1102,16 +1197,18 @@ static int client_run_connections(SSL_CTX *ssl_ctx, BIO_ADDR *bio_addr)
         /*
          * we are hq-interop client.
          */
-        chk = SSL_set_alpn_protos(ssl_qconn, alpn_ossltest, sizeof(alpn_ossltest));
+        chk = SSL_set_alpn_protos(ssl_qconn, alpn_ossltest, sizeof (alpn_ossltest));
         if (chk != 0) {
-            fprintf(stderr, "[ Client ] ]: SSL_set_alpn_protos failed %s\n",
+            fprintf(stderr, "[ Client ] %s SSL_set_alpn_protos failed %s\n",
+                    runtime(tbuf, sizeof (tbuf)),
                     ERR_reason_error_string(ERR_get_error()));
             goto while_end;
         }
 
         chk = SSL_set1_initial_peer_addr(ssl_qconn, bio_addr);
         if (chk == 0) {
-            fprintf(stderr, "[ Client ]:  SSL_set1_initial_peer_addr (%s)\n",
+            fprintf(stderr, "[ Client ] %s SSL_set1_initial_peer_addr (%s)\n",
+                    runtime(tbuf, sizeof (tbuf)),
                     ERR_reason_error_string(ERR_get_error()));
             err = 1;
             goto while_end;
@@ -1119,7 +1216,8 @@ static int client_run_connections(SSL_CTX *ssl_ctx, BIO_ADDR *bio_addr)
 
         chk = SSL_connect(ssl_qconn);
         if (chk != 1) {
-            fprintf(stderr, "[ Client ]:  SSL_connect (%s)\n",
+            fprintf(stderr, "[ Client ]: %s SSL_connect (%s)\n",
+                    runtime(tbuf, sizeof (tbuf)),
                     ERR_reason_error_string(ERR_get_error()));
             ERR_print_errors_fp(stderr);
             err = 1;
@@ -1132,18 +1230,22 @@ static int client_run_connections(SSL_CTX *ssl_ctx, BIO_ADDR *bio_addr)
         } else {
             ssl_qstream_cmd = SSL_new_stream(ssl_qconn, 0);
             if (ssl_qstream_cmd == NULL) {
-                fprintf(stderr, "[ Client ] %s SSL_new_stream failed (%s)\n",
-                        __func__, ERR_reason_error_string(ERR_get_error()));
+                fprintf(stderr, "[ Client ] %s %s SSL_new_stream failed (%s)\n",
+                        runtime(tbuf, sizeof (tbuf)), __func__,
+                        ERR_reason_error_string(ERR_get_error()));
                 err = 1;
                 goto while_end;
             }
 
-            fprintf(stdout, "( Client ) %s getting %s\n", __func__, *filename);
+            fprintf(stdout, "( Client ) %s %s getting %s\n",
+                    runtime(tbuf, sizeof (tbuf)), __func__, *filename);
             err = client_httplike_transfer(ssl_qstream_cmd, *filename);
 
             if (SSL_stream_conclude(ssl_qstream_cmd, 0) == 0) {
-                fprintf(stderr, "[ Client ] %s) SSL_stream_conclude %s for %s\n",
-                        __func__, ERR_reason_error_string(ERR_get_error()),
+                fprintf(stderr,
+                        "[ Client ] %s %s) SSL_stream_conclude %s for %s\n",
+                        runtime(tbuf, sizeof (tbuf)), __func__,
+                        ERR_reason_error_string(ERR_get_error()),
                         *filename);
             }
             SSL_free(ssl_qstream_cmd);
@@ -1169,8 +1271,8 @@ while_end:
     }
 
     if (err != 0)
-        fprintf(stderr, "[ Client ] %s could not get %s\n",
-                __func__, *filename);
+        fprintf(stderr, "[ Client ] %s %s could not get %s\n",
+                runtime(tbuf, sizeof (tbuf)), __func__, *filename);
 
     return err;
 }
@@ -1197,7 +1299,7 @@ static int qclient_main(int argc, const char *argv[])
      */
     ssl_ctx = create_ctx(NULL, NULL);
     if (ssl_ctx == NULL) {
-        fprintf(stderr, "[ Client ]: Failed to create context (%s)\n",
+        fprintf(stderr, "[ Client ] Failed to create context (%s)\n",
                 ERR_reason_error_string(ERR_get_error()));
         goto done;
     }
@@ -1283,6 +1385,8 @@ out:
 int main(int argc, const char *argv[])
 {
     const char *progname;
+
+    clock_gettime(CLOCK_MONOTONIC, &mono_start_tv);
 
     progname = strrchr(argv[0], '/');
     if (progname != NULL)
