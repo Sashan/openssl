@@ -1099,6 +1099,14 @@ out:
 
 int main(int argc, const char *argv[])
 {
+    const char *progname;
+
+    progname = strrchr(argv[0], '/');
+    if (progname != NULL)
+        progname++;
+    else
+        progname = argv[0];
+
     if (strcmp(argv[0], "qserver") == 0)
         return qserver_main(argc, argv);
     else if (strcmp(argv[0], "qclient") == 0)
