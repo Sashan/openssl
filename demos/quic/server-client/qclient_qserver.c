@@ -845,7 +845,7 @@ static void client_send_quit(SSL *ssl_qconn)
     char tbuf[80];
 
     fprintf(stdout, "( Client ) %s %s going to open QUIT stream\n",
-            runtime(tbuf, sizeof (tbuf)), __func___);
+            runtime(tbuf, sizeof (tbuf)), __func__);
     ssl_qstream = SSL_new_stream(ssl_qconn, SSL_STREAM_FLAG_UNI);
     if (ssl_qstream != NULL) {
         chk = SSL_write_ex(ssl_qstream, "QUIT\r\n", sizeof ("QUIT\r\n") - 1, &w);
