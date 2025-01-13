@@ -1,6 +1,7 @@
 /*
  * Copyright 2022-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
+
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
  * in the file LICENSE in the source distribution or at
@@ -1881,6 +1882,34 @@ err:
  * ============================
  */
 
+#include <time.h>
+#include <stdio.h>
+static char *runtime(char *buf, size_t buf_sz)
+{
+    static struct timespec mono_start_tv;
+    struct timespec mono_now_tv;
+    static int do_start = 1;
+    long tmp;
+
+    if (do_start == 1) {
+        clock_gettime(CLOCK_MONOTONIC, &mono_start_tv);
+        do_start = 0;
+    }
+    clock_gettime(CLOCK_MONOTONIC, &mono_now_tv);
+    if (mono_now_tv.tv_nsec < mono_start_tv.tv_nsec) {
+        tmp = mono_now_tv.tv_nsec - mono_start_tv.tv_nsec;
+        mono_now_tv.tv_sec -= (mono_start_tv.tv_sec + 1);
+        mono_now_tv.tv_nsec = tmp * -1;
+    } else {
+        mono_now_tv.tv_sec -= mono_start_tv.tv_sec;
+        mono_now_tv.tv_nsec -= mono_start_tv.tv_nsec;
+    }
+
+    snprintf(buf, buf_sz, "{ %lld.%06ld }", (int64_t)mono_now_tv.tv_sec,
+             mono_now_tv.tv_nsec);
+    return buf;
+}
+
 /*
  * The central ticker function called by the reactor. This does everything, or
  * at least everything network I/O related. Best effort - not allowed to fail
@@ -1892,6 +1921,7 @@ void ossl_quic_channel_subtick(QUIC_CHANNEL *ch, QUIC_TICK_RESULT *res,
     OSSL_TIME now, deadline;
     int channel_only = (flags & QUIC_REACTOR_TICK_FLAG_CHANNEL_ONLY) != 0;
     int notify_other_threads = 0;
+    char tbuf[80];
 
     /*
      * When we tick the QUIC connection, we do everything we need to do
@@ -1914,6 +1944,7 @@ void ossl_quic_channel_subtick(QUIC_CHANNEL *ch, QUIC_TICK_RESULT *res,
         res->net_write_desired      = 0;
         res->notify_other_threads   = 0;
         res->tick_deadline          = ossl_time_infinite();
+        fprintf(stderr, "%s %p (%s:%u) idle/terminated\n", runtime(tbuf, sizeof (tbuf)), ch, __func__, __LINE__);
         return;
     }
 
@@ -1930,6 +1961,7 @@ void ossl_quic_channel_subtick(QUIC_CHANNEL *ch, QUIC_TICK_RESULT *res,
             res->net_write_desired      = 0;
             res->notify_other_threads   = 1;
             res->tick_deadline          = ossl_time_infinite();
+            fprintf(stderr, "%s %p (%s:%u) channel terminating\n", runtime(tbuf, sizeof (tbuf)), ch, __func__, __LINE__);
             return; /* abort normal processing, nothing to do */
         }
     }
@@ -1969,6 +2001,11 @@ void ossl_quic_channel_subtick(QUIC_CHANNEL *ch, QUIC_TICK_RESULT *res,
      * handle it here.
      */
     now = get_time(ch);
+    /*
+     * This feels wrong w.r.t. retransmission timer. I believe
+     * we need to check how many packets are not ACKed yet
+     * and adjust deadline accordingly.
+     */
     if (ossl_time_compare(now, ch->idle_deadline) >= 0) {
         /*
          * Idle timeout differs from normal protocol violation because we do
@@ -1981,6 +2018,7 @@ void ossl_quic_channel_subtick(QUIC_CHANNEL *ch, QUIC_TICK_RESULT *res,
         res->net_write_desired      = 0;
         res->notify_other_threads   = 1;
         res->tick_deadline          = ossl_time_infinite();
+        fprintf(stderr, "%s %p (%s:%u) idle deadline expired\n", runtime(tbuf, sizeof (tbuf)), ch, __func__, __LINE__);
         return;
     }
 
@@ -2653,13 +2691,22 @@ static OSSL_TIME ch_determine_next_tick_deadline(QUIC_CHANNEL *ch)
 {
     OSSL_TIME deadline;
     int i;
+    char buf[80];
+    int got_infinite = 0;
+    char log_buf[4096];
 
-    if (ossl_quic_channel_is_terminated(ch))
+    log_buf[0] = '\0';
+    if (ossl_quic_channel_is_terminated(ch)) {
+        fprintf(stderr, "%s %p (%s:%u) channel terminated\n", runtime(buf, sizeof (buf)), ch, __func__, __LINE__);
         return ossl_time_infinite();
+    }
 
     deadline = ossl_ackm_get_loss_detection_deadline(ch->ackm);
-    if (ossl_time_is_zero(deadline))
+    if (ossl_time_is_zero(deadline)) {
+        snprintf(log_buf, sizeof (log_buf), "%s %p (%s:%u) loss detection deadline is 0, suggesting infinite deadline\n", runtime(buf, sizeof (buf)), ch, __func__, __LINE__);
         deadline = ossl_time_infinite();
+        got_infinite = 1;
+    }
 
     /*
      * Check the ack deadline for all enc_levels that are actually provisioned.
@@ -2670,6 +2717,10 @@ static OSSL_TIME ch_determine_next_tick_deadline(QUIC_CHANNEL *ch)
             deadline = ossl_time_min(deadline,
                                      ossl_ackm_get_ack_deadline(ch->ackm,
                                                                 ossl_quic_enc_level_to_pn_space(i)));
+            if (!ossl_time_is_infinite(deadline) && got_infinite) {
+                snprintf(log_buf, sizeof (log_buf), "%s %p (%s:%u) enc. level [%d] overriding infinite\n", runtime(buf, sizeof (buf)), ch, __func__, __LINE__, i);
+                got_infinite = 0;
+            }
         }
     }
 
@@ -2680,22 +2731,41 @@ static OSSL_TIME ch_determine_next_tick_deadline(QUIC_CHANNEL *ch)
     if (!ossl_time_is_infinite(ch->ping_deadline))
         deadline = ossl_time_min(deadline, ch->ping_deadline);
 
+/* investigate deadlines */
     /* Apply TXP wakeup deadline. */
     deadline = ossl_time_min(deadline,
                              ossl_quic_tx_packetiser_get_deadline(ch->txp));
+    if (got_infinite && !ossl_time_is_infinite(deadline)) {
+        snprintf(log_buf, sizeof (log_buf), "%s %p (%s:%u) infinite overridden by packatiser\n", runtime(buf, sizeof (buf)), ch, __func__, __LINE__);
+        got_infinite = 0;
+    }
 
     /* Is the terminating timer armed? */
-    if (ossl_quic_channel_is_terminating(ch))
+    if (ossl_quic_channel_is_terminating(ch)) {
         deadline = ossl_time_min(deadline,
                                  ch->terminate_deadline);
-    else if (!ossl_time_is_infinite(ch->idle_deadline))
+        if (got_infinite == 1 && !ossl_time_is_infinite(deadline)) {
+            snprintf(log_buf, sizeof (log_buf), "%s %p (%s:%u) infinite overridden by terminate deadline\n", runtime(buf, sizeof (buf)), ch, __func__, __LINE__);
+            got_infinite = 0;
+        }
+    } else if (!ossl_time_is_infinite(ch->idle_deadline)) {
         deadline = ossl_time_min(deadline,
                                  ch->idle_deadline);
+        if (got_infinite == 1 && !ossl_time_is_infinite(deadline)) {
+            snprintf(log_buf, sizeof (log_buf), "%s %p (%s:%u) infinite overridden by idle deadline\n", runtime(buf, sizeof (buf)), ch, __func__, __LINE__);
+            got_infinite = 0;
+        }
+    }
 
     /* When does the RXKU process complete? */
     if (ch->rxku_in_progress)
         deadline = ossl_time_min(deadline, ch->rxku_update_end_deadline);
 
+    if (ossl_time_is_infinite(deadline))
+        snprintf(log_buf, sizeof (log_buf), "%s %p (%s:%u) channel terminating/terminated\n", runtime(buf, sizeof (buf)), ch, __func__, __LINE__);
+
+    if (log_buf[0] != '\0')
+    	fprintf(stderr, "%s", log_buf);
     return deadline;
 }
 
