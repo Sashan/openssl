@@ -98,7 +98,7 @@ static int frame_ack(BIO *bio, PACKET *pkt)
 
     /* Ack delay exponent is 0, so we can get the raw delay time below */
     if (!ossl_quic_wire_decode_frame_ack(pkt, 0, &ack, NULL))
-        goto end;
+        goto end; /* LCOV_EXCL_BR_LINE */
 
     BIO_printf(bio, "    Largest acked: %llu\n",
                (unsigned long long)ack.ack_ranges[0].end);
@@ -119,9 +119,9 @@ static int frame_ack(BIO *bio, PACKET *pkt)
     }
 
     ret = 1;
-end:
+end: /* LCOV_EXCL_BR_START */
     OPENSSL_free(ack_ranges);
-    return ret;
+    return ret; /* LCOV_EXCL_BR_END */
 }
 
 static int frame_reset_stream(BIO *bio, PACKET *pkt)

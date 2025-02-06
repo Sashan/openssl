@@ -137,15 +137,15 @@ static int port_init(QUIC_PORT *port)
     int ret = 0;
 
     if (port->engine == NULL || port->channel_ctx == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if ((port->err_state = OSSL_ERR_STATE_new()) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if ((port->demux = ossl_quic_demux_new(/*BIO=*/NULL,
                                            /*Short CID Len=*/rx_short_dcid_len,
                                            get_time, port)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ossl_quic_demux_set_default_handler(port->demux,
                                         port_default_packet_handler,
@@ -153,11 +153,11 @@ static int port_init(QUIC_PORT *port)
 
     if ((port->srtm = ossl_quic_srtm_new(port->engine->libctx,
                                          port->engine->propq)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if ((port->lcidm = ossl_quic_lcidm_new(port->engine->libctx,
                                            rx_short_dcid_len)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     port->rx_short_dcid_len = (unsigned char)rx_short_dcid_len;
     port->tx_init_dcid_len  = INIT_DCID_LEN;
@@ -176,7 +176,7 @@ static int port_init(QUIC_PORT *port)
         || (token_key = OPENSSL_malloc(key_len)) == NULL
         || !RAND_bytes_ex(port->engine->libctx, token_key, key_len, 0)
         || !EVP_EncryptInit_ex(port->token_ctx, NULL, NULL, token_key, NULL))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ret = 1;
 err:
@@ -903,12 +903,12 @@ static int encrypt_validation_token(const QUIC_PORT *port,
 
     if ((tag_len = EVP_CIPHER_CTX_get_tag_length(port->token_ctx)) == 0
         || (iv_len = EVP_CIPHER_CTX_get_iv_length(port->token_ctx)) <= 0)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     *ct_len = iv_len + pt_len + tag_len + QUIC_RETRY_INTEGRITY_TAG_LEN;
     if (ciphertext == NULL) {
         ret = 1;
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     data = ciphertext + iv_len;
@@ -919,7 +919,7 @@ static int encrypt_validation_token(const QUIC_PORT *port,
         || !EVP_EncryptUpdate(port->token_ctx, data, &len, plaintext, pt_len)
         || !EVP_EncryptFinal_ex(port->token_ctx, data + pt_len, &len)
         || !EVP_CIPHER_CTX_ctrl(port->token_ctx, EVP_CTRL_GCM_GET_TAG, tag_len, tag))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ret = 1;
 err:
@@ -953,16 +953,16 @@ static int decrypt_validation_token(const QUIC_PORT *port,
 
     if ((tag_len = EVP_CIPHER_CTX_get_tag_length(port->token_ctx)) == 0
         || (iv_len = EVP_CIPHER_CTX_get_iv_length(port->token_ctx)) <= 0)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /* Prevent decryption of a buffer that is not within reasonable bounds */
     if (ct_len < (iv_len + tag_len) || ct_len > ENCRYPTED_TOKEN_MAX_LEN)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     *pt_len = ct_len - iv_len - tag_len;
     if (plaintext == NULL) {
         ret = 1;
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     data = ciphertext + iv_len;
@@ -974,7 +974,7 @@ static int decrypt_validation_token(const QUIC_PORT *port,
         || !EVP_CIPHER_CTX_ctrl(port->token_ctx, EVP_CTRL_GCM_SET_TAG, tag_len,
                                 (void *)tag)
         || !EVP_DecryptFinal_ex(port->token_ctx, plaintext + len, &len))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ret = 1;
 
@@ -1086,7 +1086,7 @@ static void port_send_retry(QUIC_PORT *port,
      */
     ok = ossl_quic_lcidm_get_unused_cid(port->lcidm, &hdr.src_conn_id);
     if (ok == 0)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     memset(&token, 0, sizeof(QUIC_VALIDATION_TOKEN));
 
@@ -1100,7 +1100,7 @@ static void port_send_retry(QUIC_PORT *port,
         || !encrypt_validation_token(port, buffer, token_buf_len, ct_buf,
                                      &ct_len)
         || !ossl_assert(ct_len >= QUIC_RETRY_INTEGRITY_TAG_LEN))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     hdr.dst_conn_id = client_hdr->src_conn_id;
     hdr.type = QUIC_PKT_TYPE_RETRY;
@@ -1114,7 +1114,7 @@ static void port_send_retry(QUIC_PORT *port,
                                                  ct_buf + ct_len
                                                  - QUIC_RETRY_INTEGRITY_TAG_LEN);
     if (ok == 0)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     hdr.token = hdr.data;
     hdr.token_len = hdr.len;
@@ -1126,20 +1126,20 @@ static void port_send_retry(QUIC_PORT *port,
 
     ok = WPACKET_init_static_len(&wpkt, buffer, sizeof(buffer), 0);
     if (ok == 0)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ok = ossl_quic_wire_encode_pkt_hdr(&wpkt, client_hdr->dst_conn_id.id_len,
                                        &hdr, NULL);
     if (ok == 0)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ok = WPACKET_get_total_written(&wpkt, &msg[0].data_len);
     if (ok == 0)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ok = WPACKET_finish(&wpkt);
     if (ok == 0)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /*
      * TODO(QUIC FUTURE) need to retry this in the event it return EAGAIN
@@ -1300,19 +1300,19 @@ static int port_validate_token(QUIC_PKT_HDR *hdr, QUIC_PORT *port,
         || !decrypt_validation_token(port, hdr->token, hdr->token_len,
                                      dec_token, &dec_token_len)
         || !parse_validation_token(&token, dec_token, dec_token_len))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /*
      * Validate token timestamp. Current time should not be before the token
      * timestamp.
      */
     if (ossl_time_compare(now, token.timestamp) < 0)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     time_diff = ossl_time2seconds(ossl_time_abs_difference(token.timestamp,
                                                            now));
     if ((token.is_retry && time_diff > RETRY_LIFETIME)
         || (!token.is_retry && time_diff > NEW_TOKEN_LIFETIME))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /* Validate remote address */
     if (!BIO_ADDR_rawaddress(peer, NULL, &remote_addr_len)
@@ -1320,7 +1320,7 @@ static int port_validate_token(QUIC_PKT_HDR *hdr, QUIC_PORT *port,
         || (remote_addr = OPENSSL_malloc(remote_addr_len)) == NULL
         || !BIO_ADDR_rawaddress(peer, remote_addr, &remote_addr_len)
         || memcmp(remote_addr, token.remote_addr, remote_addr_len) != 0)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /*
      * Set ODCID and SCID. If the token is from a RETRY packet, retrieve both
@@ -1340,12 +1340,12 @@ static int port_validate_token(QUIC_PKT_HDR *hdr, QUIC_PORT *port,
         if (token.rscid.id_len != hdr->dst_conn_id.id_len
             || memcmp(&token.rscid.id, &hdr->dst_conn_id.id,
                       token.rscid.id_len) != 0)
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
         *odcid = token.odcid;
         *scid = token.rscid;
     } else {
         if (!ossl_quic_lcidm_get_unused_cid(port->lcidm, odcid))
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
         *scid = hdr->src_conn_id;
     }
 
@@ -1441,10 +1441,10 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
 
     /* Don't handle anything if we are no longer running. */
     if (!ossl_quic_port_is_running(port))
-        goto undesirable;
+        goto undesirable; /* LCOV_EXCL_BR_LINE */
 
     if (port_try_handle_stateless_reset(port, e))
-        goto undesirable;
+        goto undesirable; /* LCOV_EXCL_BR_LINE */
 
     if (dcid != NULL
         && ossl_quic_lcidm_lookup(port->lcidm, dcid, NULL,
@@ -1459,17 +1459,17 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
      * we assume this is an attempt to make a new connection.
      */
     if (!port->allow_incoming)
-        goto undesirable;
+        goto undesirable; /* LCOV_EXCL_BR_LINE */
 
     /*
      * We have got a packet for an unknown DCID. This might be an attempt to
      * open a new connection.
      */
     if (e->data_len < QUIC_MIN_INITIAL_DGRAM_LEN)
-        goto undesirable;
+        goto undesirable; /* LCOV_EXCL_BR_LINE */
 
     if (!PACKET_buf_init(&pkt, ossl_quic_urxe_data(e), e->data_len))
-        goto undesirable;
+        goto undesirable; /* LCOV_EXCL_BR_LINE */
 
     /*
      * We set short_conn_id_len to SIZE_MAX here which will cause the decode
@@ -1484,7 +1484,7 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
          * negotiation packet
          */
         if ((cause_flags & QUIC_PKT_HDR_DECODE_BAD_VERSION) == 0)
-            goto undesirable;
+            goto undesirable; /* LCOV_EXCL_BR_LINE */
     }
 
     switch (hdr.version) {
@@ -1501,7 +1501,7 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
          * is a minimum of 1200 bytes in size
          */
         if (e->data_len < 1200)
-            goto undesirable;
+            goto undesirable; /* LCOV_EXCL_BR_LINE */
 
         /*
          * If we don't get a supported version, respond with a ver
@@ -1509,7 +1509,7 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
          * TODO(QUIC FUTURE): Rate limit the reception of these
          */
         port_send_version_negotiation(port, &e->peer, &hdr);
-        goto undesirable;
+        goto undesirable; /* LCOV_EXCL_BR_LINE */
     }
 
     /*
@@ -1517,7 +1517,7 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
      * connection.
      */
     if (hdr.type != QUIC_PKT_TYPE_INITIAL)
-        goto undesirable;
+        goto undesirable; /* LCOV_EXCL_BR_LINE */
 
     odcid.id_len = 0;
 
@@ -1528,7 +1528,7 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
      */
     if (port->validate_addr == 1 && hdr.token == NULL) {
         port_send_retry(port, &e->peer, &hdr);
-        goto undesirable;
+        goto undesirable; /* LCOV_EXCL_BR_LINE */
     }
 
     /*
@@ -1554,7 +1554,7 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
          */
         if (port->validate_addr == 1) {
             port_send_retry(port, &e->peer, &hdr);
-            goto undesirable;
+            goto undesirable; /* LCOV_EXCL_BR_LINE */
         }
     }
 

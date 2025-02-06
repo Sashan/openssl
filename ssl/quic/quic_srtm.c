@@ -114,20 +114,20 @@ QUIC_SRTM *ossl_quic_srtm_new(OSSL_LIB_CTX *libctx, const char *propq)
     EVP_CIPHER *ecb = NULL;
 
     if (RAND_priv_bytes_ex(libctx, key, sizeof(key), sizeof(key) * 8) != 1)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if ((srtm = OPENSSL_zalloc(sizeof(*srtm))) == NULL)
         return NULL;
 
     /* Use AES-128-ECB as a permutation over 128-bit SRTs. */
     if ((ecb = EVP_CIPHER_fetch(libctx, "AES-128-ECB", propq)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if ((srtm->blind_ctx = EVP_CIPHER_CTX_new()) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!EVP_EncryptInit_ex2(srtm->blind_ctx, ecb, key, NULL, NULL))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     EVP_CIPHER_free(ecb);
     ecb = NULL;
@@ -135,18 +135,18 @@ QUIC_SRTM *ossl_quic_srtm_new(OSSL_LIB_CTX *libctx, const char *propq)
     /* Create mappings. */
     if ((srtm->items_fwd = lh_SRTM_ITEM_new(items_fwd_hash, items_fwd_cmp)) == NULL
         || (srtm->items_rev = lh_SRTM_ITEM_new(items_rev_hash, items_rev_cmp)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     return srtm;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     /*
      * No cleansing of key needed as blinding exists only for side channel
      * mitigation.
      */
     ossl_quic_srtm_free(srtm);
     EVP_CIPHER_free(ecb);
-    return NULL;
+    return NULL; /* LCOV_EXCL_BR_END */
 }
 
 static void srtm_free_each(SRTM_ITEM *ihead)

@@ -358,7 +358,7 @@ static int newreno_on_data_acked(OSSL_CC_DATA *cc,
      * congestion window.
      */
     if (!newreno_is_cong_limited(nr))
-        goto out;
+        goto out; /* LCOV_EXCL_BR_LINE */
 
     /*
      * We can handle acknowledgement of a packet in one of three ways
@@ -419,7 +419,7 @@ static int newreno_on_data_lost(OSSL_CC_DATA *cc,
              * packet at a time s < t, as we've effectively already signalled
              * congestion on loss of that and subsequent packets.
              */
-            goto out;
+            goto out; /* LCOV_EXCL_BR_LINE */
 
         nr->processing_loss = 1;
 

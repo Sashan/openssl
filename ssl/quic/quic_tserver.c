@@ -82,16 +82,16 @@ QUIC_TSERVER *ossl_quic_tserver_new(const QUIC_TSERVER_ARGS *args,
     QUIC_CONNECTION *qc = NULL;
 
     if (args->net_rbio == NULL || args->net_wbio == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if ((srv = OPENSSL_zalloc(sizeof(*srv))) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     srv->args = *args;
 
 #if defined(OPENSSL_THREADS)
     if ((srv->mutex = ossl_crypto_mutex_new()) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 #endif
 
     if (args->ctx != NULL)
@@ -100,28 +100,28 @@ QUIC_TSERVER *ossl_quic_tserver_new(const QUIC_TSERVER_ARGS *args,
         srv->ctx = SSL_CTX_new_ex(srv->args.libctx, srv->args.propq,
                                   TLS_method());
     if (srv->ctx == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (certfile != NULL
             && SSL_CTX_use_certificate_file(srv->ctx, certfile, SSL_FILETYPE_PEM) <= 0)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (keyfile != NULL
             && SSL_CTX_use_PrivateKey_file(srv->ctx, keyfile, SSL_FILETYPE_PEM) <= 0)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     SSL_CTX_set_alpn_select_cb(srv->ctx, alpn_select_cb, srv);
 
     srv->tls = SSL_new(srv->ctx);
     if (srv->tls == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     engine_args.libctx          = srv->args.libctx;
     engine_args.propq           = srv->args.propq;
     engine_args.mutex           = srv->mutex;
 
     if ((srv->engine = ossl_quic_engine_new(&engine_args)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ossl_quic_engine_set_time_cb(srv->engine, srv->args.now_cb,
                                  srv->args.now_cb_arg);
@@ -130,25 +130,25 @@ QUIC_TSERVER *ossl_quic_tserver_new(const QUIC_TSERVER_ARGS *args,
     port_args.is_multi_conn     = 1;
     port_args.do_addr_validation = 1;
     if ((srv->port = ossl_quic_engine_create_port(srv->engine, &port_args)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if ((srv->ch = ossl_quic_port_create_incoming(srv->port, srv->tls)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_port_set_net_rbio(srv->port, srv->args.net_rbio)
         || !ossl_quic_port_set_net_wbio(srv->port, srv->args.net_wbio))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     qc = OPENSSL_zalloc(sizeof(*qc));
     if (qc == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     srv->ssl = (SSL *)qc;
     qc->ch = srv->ch;
     srv->ssl->type = SSL_TYPE_QUIC_CONNECTION;
 
     return srv;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     if (srv != NULL) {
         if (args->ctx == NULL)
             SSL_CTX_free(srv->ctx);
@@ -163,7 +163,7 @@ err:
     }
 
     OPENSSL_free(srv);
-    return NULL;
+    return NULL; /* LCOV_EXCL_BR_END */
 }
 
 void ossl_quic_tserver_free(QUIC_TSERVER *srv)

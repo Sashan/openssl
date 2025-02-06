@@ -71,13 +71,13 @@ static int depack_do_frame_ack(PACKET *pkt, QUIC_CHANNEL *ch,
     if (!ossl_quic_wire_peek_frame_ack_num_ranges(pkt, &total_ranges)
         /* In case sizeof(uint64_t) > sizeof(size_t) */
         || total_ranges > SIZE_MAX / sizeof(OSSL_QUIC_ACK_RANGE))
-        goto malformed;
+        goto malformed; /* LCOV_EXCL_BR_LINE */
 
     if (ch->num_ack_range_scratch < (size_t)total_ranges) {
         if ((p = OPENSSL_realloc(ch->ack_range_scratch,
                                  sizeof(OSSL_QUIC_ACK_RANGE)
                                  * (size_t)total_ranges)) == NULL)
-            goto malformed;
+            goto malformed; /* LCOV_EXCL_BR_LINE */
 
         ch->ack_range_scratch       = p;
         ch->num_ack_range_scratch   = (size_t)total_ranges;
@@ -87,7 +87,7 @@ static int depack_do_frame_ack(PACKET *pkt, QUIC_CHANNEL *ch,
     ack.num_ack_ranges = (size_t)total_ranges;
 
     if (!ossl_quic_wire_decode_frame_ack(pkt, ack_delay_exp, &ack, NULL))
-        goto malformed;
+        goto malformed; /* LCOV_EXCL_BR_LINE */
 
     if (qpacket->hdr->type == QUIC_PKT_TYPE_1RTT
         && (qpacket->key_epoch < ossl_qrx_get_key_epoch(ch->qrx)
@@ -125,17 +125,17 @@ static int depack_do_frame_ack(PACKET *pkt, QUIC_CHANNEL *ch,
 
     if (!ossl_ackm_on_rx_ack_frame(ch->ackm, &ack,
                                    packet_space, received))
-        goto malformed;
+        goto malformed; /* LCOV_EXCL_BR_LINE */
 
     ++ch->diag_num_rx_ack;
     return 1;
 
-malformed:
+malformed: /* LCOV_EXCL_BR_START */
     ossl_quic_channel_raise_protocol_error(ch,
                                            OSSL_QUIC_ERR_FRAME_ENCODING_ERROR,
                                            frame_type,
                                            "decode error");
-    return 0;
+    return 0; /* LCOV_EXCL_BR_END */
 }
 
 static int depack_do_frame_reset_stream(PACKET *pkt,
@@ -961,14 +961,14 @@ static int depack_do_frame_path_challenge(PACKET *pkt,
      */
     encoded_len = sizeof(uint64_t) + 1;
     if ((encoded = OPENSSL_malloc(encoded_len)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!WPACKET_init_static_len(&wpkt, encoded, encoded_len, 0))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_wire_encode_frame_path_response(&wpkt, frame_data)) {
         WPACKET_cleanup(&wpkt);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     WPACKET_finish(&wpkt);
@@ -978,16 +978,16 @@ static int depack_do_frame_path_challenge(PACKET *pkt,
                                  QUIC_CFQ_ITEM_FLAG_UNRELIABLE,
                                  encoded, encoded_len,
                                  free_path_response, NULL))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     return 1;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     OPENSSL_free(encoded);
     ossl_quic_channel_raise_protocol_error(ch, OSSL_QUIC_ERR_INTERNAL_ERROR,
                                            OSSL_QUIC_FRAME_TYPE_PATH_CHALLENGE,
                                            "internal error");
-    return 0;
+    return 0; /* LCOV_EXCL_BR_END */
 }
 
 static int depack_do_frame_path_response(PACKET *pkt,
@@ -1438,7 +1438,7 @@ int ossl_quic_handle_frames(QUIC_CHANNEL *ch, OSSL_QRX_PKT *qpacket)
     int ok = -1;                  /* Assume the worst */
 
     if (ch == NULL)
-        goto end;
+        goto end; /* LCOV_EXCL_BR_LINE */
 
     ch->did_crypto_frame = 0;
 
@@ -1456,7 +1456,7 @@ int ossl_quic_handle_frames(QUIC_CHANNEL *ch, OSSL_QRX_PKT *qpacket)
          * Retry and Version Negotiation packets should not be passed to this
          * function.
          */
-        goto end;
+        goto end; /* LCOV_EXCL_BR_LINE */
 
     ok = 0; /* Still assume the worst */
     ackm_data.pkt_space = ossl_quic_enc_level_to_pn_space(enc_level);
@@ -1480,7 +1480,7 @@ int ossl_quic_handle_frames(QUIC_CHANNEL *ch, OSSL_QRX_PKT *qpacket)
                                   enc_level,
                                   qpacket->time,
                                   &ackm_data))
-        goto end;
+        goto end; /* LCOV_EXCL_BR_LINE */
 
     ok = 1;
  end:

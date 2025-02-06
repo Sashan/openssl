@@ -229,19 +229,19 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
         break;
     case OSSL_QUIC_FRAME_TYPE_PING:
         if (!ossl_quic_wire_decode_frame_ping(pkt))
-            goto unknown;
+            goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
         QLOG_STR("frame_type", "ping");
         break;
     case OSSL_QUIC_FRAME_TYPE_ACK_WITHOUT_ECN:
     case OSSL_QUIC_FRAME_TYPE_ACK_WITH_ECN:
         if (!ossl_quic_wire_peek_frame_ack_num_ranges(pkt, &num_ranges))
-            goto unknown;
+            goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
         ack.ack_ranges      = ack_ranges;
         ack.num_ack_ranges  = OSSL_NELEM(ack_ranges);
         if (!ossl_quic_wire_decode_frame_ack(pkt, 3, &ack, &total_ranges))
-            goto unknown;
+            goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
         QLOG_STR("frame_type", "ack");
         QLOG_U64("ack_delay", ossl_time2ms(ack.delay_time));
@@ -265,7 +265,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             OSSL_QUIC_FRAME_RESET_STREAM f;
 
             if (!ossl_quic_wire_decode_frame_reset_stream(pkt, &f))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "reset_stream");
             QLOG_U64("stream_id", f.stream_id);
@@ -278,7 +278,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             OSSL_QUIC_FRAME_STOP_SENDING f;
 
             if (!ossl_quic_wire_decode_frame_stop_sending(pkt, &f))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "stop_sending");
             QLOG_U64("stream_id", f.stream_id);
@@ -290,7 +290,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             OSSL_QUIC_FRAME_CRYPTO f;
 
             if (!ossl_quic_wire_decode_frame_crypto(pkt, 1, &f))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "crypto");
             QLOG_U64("offset", f.offset);
@@ -310,7 +310,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             OSSL_QUIC_FRAME_STREAM f;
 
             if (!ossl_quic_wire_decode_frame_stream(pkt, 1, &f))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "stream");
             QLOG_U64("stream_id", f.stream_id);
@@ -328,7 +328,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             uint64_t x;
 
             if (!ossl_quic_wire_decode_frame_max_data(pkt, &x))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "max_data");
             QLOG_U64("maximum", x);
@@ -340,7 +340,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             uint64_t x;
 
             if (!ossl_quic_wire_decode_frame_max_streams(pkt, &x))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "max_streams");
             QLOG_STR("stream_type",
@@ -355,7 +355,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
 
             if (!ossl_quic_wire_decode_frame_max_stream_data(pkt, &stream_id,
                                                              &max_data))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "max_stream_data");
             QLOG_U64("stream_id", stream_id);
@@ -367,7 +367,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             uint64_t challenge;
 
             if (!ossl_quic_wire_decode_frame_path_challenge(pkt, &challenge))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "path_challenge");
         }
@@ -377,7 +377,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             uint64_t challenge;
 
             if (!ossl_quic_wire_decode_frame_path_response(pkt, &challenge))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "path_response");
         }
@@ -388,7 +388,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             OSSL_QUIC_FRAME_CONN_CLOSE f;
 
             if (!ossl_quic_wire_decode_frame_conn_close(pkt, &f))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "connection_close");
             QLOG_STR("error_space", f.is_app ? "application" : "transport");
@@ -403,7 +403,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
     case OSSL_QUIC_FRAME_TYPE_HANDSHAKE_DONE:
         {
             if (!ossl_quic_wire_decode_frame_handshake_done(pkt))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "handshake_done");
         }
@@ -413,7 +413,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             OSSL_QUIC_FRAME_NEW_CONN_ID f;
 
             if (!ossl_quic_wire_decode_frame_new_conn_id(pkt, &f))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "new_connection_id");
             QLOG_U64("sequence_number", f.seq_num);
@@ -429,7 +429,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             uint64_t seq_num;
 
             if (!ossl_quic_wire_decode_frame_retire_conn_id(pkt, &seq_num))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "retire_connection_id");
             QLOG_U64("sequence_number", seq_num);
@@ -440,7 +440,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             uint64_t x;
 
             if (!ossl_quic_wire_decode_frame_data_blocked(pkt, &x))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "data_blocked");
             QLOG_U64("limit", x);
@@ -453,7 +453,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             if (!ossl_quic_wire_decode_frame_stream_data_blocked(pkt,
                                                                  &stream_id,
                                                                  &x))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "stream_data_blocked");
             QLOG_U64("stream_id", stream_id);
@@ -466,7 +466,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             uint64_t x;
 
             if (!ossl_quic_wire_decode_frame_streams_blocked(pkt, &x))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "streams_blocked");
             QLOG_STR("stream_type",
@@ -481,7 +481,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
             size_t token_len;
 
             if (!ossl_quic_wire_decode_frame_new_token(pkt, &token, &token_len))
-                goto unknown;
+                goto unknown; /* LCOV_EXCL_BR_LINE WANT_FUZZ_QLOG */
 
             QLOG_STR("frame_type", "new_token");
             QLOG_BEGIN("token");
@@ -492,7 +492,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
         }
         break;
     default:
-unknown:
+unknown: /* LCOV_EXCL_BR_START WANT_FUZZ_QLOG */
         QLOG_STR("frame_type", "unknown");
         QLOG_U64("frame_type_value", frame_type);
 
@@ -506,7 +506,7 @@ unknown:
                      PACKET_remaining(&orig_pkt));
         QLOG_END();
         ignore_res(PACKET_forward(pkt, PACKET_remaining(pkt)));
-        break;
+        break; /* LCOV_EXCL_BR_STOP WANT_FUZZ_QLOG */
     }
 
     return 1;

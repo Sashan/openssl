@@ -37,7 +37,7 @@ int ossl_quic_hkdf_extract(OSSL_LIB_CTX *libctx,
     if ((md_name = EVP_MD_get0_name(md)) == NULL
         || (kdf = EVP_KDF_fetch(libctx, OSSL_KDF_NAME_HKDF, propq)) == NULL
         || (kctx = EVP_KDF_CTX_new(kdf)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /*
      * According to RFC 9000, the length of destination connection ID must be
@@ -115,7 +115,7 @@ int ossl_quic_provide_initial_secret(OSSL_LIB_CTX *libctx,
                                 dst_conn_id->id_len,
                                 initial_secret,
                                 sizeof(initial_secret)))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /* Derive "client in" secret. */
     if (((qtx != NULL && tx_secret == client_initial_secret)
@@ -128,7 +128,7 @@ int ossl_quic_provide_initial_secret(OSSL_LIB_CTX *libctx,
                                  NULL, 0,
                                  client_initial_secret,
                                  sizeof(client_initial_secret), 1))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /* Derive "server in" secret. */
     if (((qtx != NULL && tx_secret == server_initial_secret)
@@ -141,7 +141,7 @@ int ossl_quic_provide_initial_secret(OSSL_LIB_CTX *libctx,
                                  NULL, 0,
                                  server_initial_secret,
                                  sizeof(server_initial_secret), 1))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /* Setup RX EL. Initial encryption always uses AES-128-GCM. */
     if (qrx != NULL
@@ -150,7 +150,7 @@ int ossl_quic_provide_initial_secret(OSSL_LIB_CTX *libctx,
                                     sha256,
                                     rx_secret,
                                     sizeof(server_initial_secret)))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /*
      * ossl_qrx_provide_secret takes ownership of our ref to SHA256, so if we
@@ -159,7 +159,7 @@ int ossl_quic_provide_initial_secret(OSSL_LIB_CTX *libctx,
      */
     if (qrx != NULL && qtx != NULL && !EVP_MD_up_ref(sha256)) {
         sha256 = NULL;
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /* Setup TX cipher. */
@@ -169,13 +169,13 @@ int ossl_quic_provide_initial_secret(OSSL_LIB_CTX *libctx,
                                     sha256,
                                     tx_secret,
                                     sizeof(server_initial_secret)))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     return 1;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     EVP_MD_free(sha256);
-    return 0;
+    return 0; /* LCOV_EXCL_BR_END */
 }
 
 /*

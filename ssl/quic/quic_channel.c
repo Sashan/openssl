@@ -167,7 +167,7 @@ static int ch_init(QUIC_CHANNEL *ch)
     size_t tx_init_dcid_len;
 
     if (ch->port == NULL || ch->lcidm == NULL || ch->srtm == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     rx_short_dcid_len = ossl_quic_port_get_rx_short_dcid_len(ch->port);
     tx_init_dcid_len = ossl_quic_port_get_tx_init_dcid_len(ch->port);
@@ -176,7 +176,7 @@ static int ch_init(QUIC_CHANNEL *ch)
     if (!ch->is_server
         && !ossl_quic_gen_rand_conn_id(ch->port->engine->libctx, tx_init_dcid_len,
                                        &ch->init_dcid))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /* We plug in a network write BIO to the QTX later when we get one. */
     qtx_args.libctx             = ch->port->engine->libctx;
@@ -189,18 +189,18 @@ static int ch_init(QUIC_CHANNEL *ch)
 
     ch->qtx = ossl_qtx_new(&qtx_args);
     if (ch->qtx == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ch->txpim = ossl_quic_txpim_new();
     if (ch->txpim == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ch->cfq = ossl_quic_cfq_new();
     if (ch->cfq == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_txfc_init(&ch->conn_txfc, NULL))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /*
      * Note: The TP we transmit governs what the peer can transmit and thus
@@ -215,47 +215,47 @@ static int ch_init(QUIC_CHANNEL *ch)
                              DEFAULT_CONN_RXFC_MAX_WND_MUL *
                              DEFAULT_INIT_CONN_RXFC_WND,
                              get_time, ch))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     for (pn_space = QUIC_PN_SPACE_INITIAL; pn_space < QUIC_PN_SPACE_NUM; ++pn_space)
         if (!ossl_quic_rxfc_init_standalone(&ch->crypto_rxfc[pn_space],
                                             INIT_CRYPTO_RECV_BUF_LEN,
                                             get_time, ch))
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_rxfc_init_standalone(&ch->max_streams_bidi_rxfc,
                                         DEFAULT_INIT_CONN_MAX_STREAMS,
                                         get_time, ch))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_rxfc_init_standalone(&ch->max_streams_uni_rxfc,
                                         DEFAULT_INIT_CONN_MAX_STREAMS,
                                         get_time, ch))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_statm_init(&ch->statm))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ch->have_statm = 1;
     ch->cc_method = &ossl_cc_newreno_method;
     if ((ch->cc_data = ch->cc_method->new(get_time, ch)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if ((ch->ackm = ossl_ackm_new(get_time, ch, &ch->statm,
                                   ch->cc_method, ch->cc_data)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_stream_map_init(&ch->qsm, get_stream_limit, ch,
                                    &ch->max_streams_bidi_rxfc,
                                    &ch->max_streams_uni_rxfc,
                                    ch->is_server))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ch->have_qsm = 1;
 
     if (!ch->is_server
         && !ossl_quic_lcidm_generate_initial(ch->lcidm, ch, &ch->init_scid))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     txp_args.cur_scid               = ch->init_scid;
     txp_args.cur_dcid               = ch->init_dcid;
@@ -280,14 +280,14 @@ static int ch_init(QUIC_CHANNEL *ch)
     for (pn_space = QUIC_PN_SPACE_INITIAL; pn_space < QUIC_PN_SPACE_NUM; ++pn_space) {
         ch->crypto_send[pn_space] = ossl_quic_sstream_new(INIT_CRYPTO_SEND_BUF_LEN);
         if (ch->crypto_send[pn_space] == NULL)
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
 
         txp_args.crypto[pn_space] = ch->crypto_send[pn_space];
     }
 
     ch->txp = ossl_quic_tx_packetiser_new(&txp_args);
     if (ch->txp == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /* clients have no amplification limit, so are considered always valid */
     if (!ch->is_server)
@@ -301,22 +301,22 @@ static int ch_init(QUIC_CHANNEL *ch)
     qrx_args.max_deferred       = 32;
 
     if ((ch->qrx = ossl_qrx_new(&qrx_args)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_qrx_set_late_validation_cb(ch->qrx,
                                          rx_late_validate,
                                          ch))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_qrx_set_key_update_cb(ch->qrx,
                                     rxku_detected,
                                     ch))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     for (pn_space = QUIC_PN_SPACE_INITIAL; pn_space < QUIC_PN_SPACE_NUM; ++pn_space) {
         ch->crypto_recv[pn_space] = ossl_quic_rstream_new(NULL, NULL, 0);
         if (ch->crypto_recv[pn_space] == NULL)
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /* Plug in the TLS handshake layer. */
@@ -338,7 +338,7 @@ static int ch_init(QUIC_CHANNEL *ch)
     tls_args.is_server                  = ch->is_server;
 
     if ((ch->qtls = ossl_quic_tls_new(&tls_args)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ch->tx_max_ack_delay        = DEFAULT_MAX_ACK_DELAY;
     ch->rx_max_ack_delay        = QUIC_DEFAULT_MAX_ACK_DELAY;
@@ -360,9 +360,9 @@ static int ch_init(QUIC_CHANNEL *ch)
     ch->on_port_list = 1;
     return 1;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     ch_cleanup(ch);
-    return 0;
+    return 0; /* LCOV_EXCL_BR_END */
 }
 
 static void ch_cleanup(QUIC_CHANNEL *ch)
@@ -535,21 +535,21 @@ int ossl_quic_channel_schedule_new_token(QUIC_CHANNEL *ch,
 
     buf_mem = BUF_MEM_new();
     if (buf_mem == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!WPACKET_init(&wpkt, buf_mem))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_wire_encode_frame_new_token(&wpkt, token,
                                                token_len)) {
         WPACKET_cleanup(&wpkt);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     WPACKET_finish(&wpkt);
 
     if (!WPACKET_get_total_written(&wpkt, &l))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     cfq_item = ossl_quic_cfq_add_frame(ch->cfq, 1,
                                        QUIC_PN_SPACE_APP,
@@ -558,13 +558,13 @@ int ossl_quic_channel_schedule_new_token(QUIC_CHANNEL *ch,
                                        free_buf_mem,
                                        buf_mem);
     if (cfq_item == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     rc = 1;
-err:
+err: /* LCOV_EXCL_BR_START */
     if (!rc)
         BUF_MEM_free(buf_mem);
-    return rc;
+    return rc; /* LCOV_EXCL_BR_END */
 }
 
 size_t ossl_quic_channel_get_short_header_conn_id_len(QUIC_CHANNEL *ch)
@@ -1276,7 +1276,7 @@ static int ch_on_transport_params(const unsigned char *params,
 
     if (ch->got_remote_transport_params) {
         reason = "multiple transport parameter extensions";
-        goto malformed;
+        goto malformed; /* LCOV_EXCL_BR_LINE */
     }
 
     if (!PACKET_buf_init(&pkt, params, params_len)) {
@@ -1287,30 +1287,30 @@ static int ch_on_transport_params(const unsigned char *params,
 
     while (PACKET_remaining(&pkt) > 0) {
         if (!ossl_quic_wire_peek_transport_param(&pkt, &id))
-            goto malformed;
+            goto malformed; /* LCOV_EXCL_BR_LINE */
 
         switch (id) {
         case QUIC_TPARAM_ORIG_DCID:
             if (got_orig_dcid) {
                 reason = TP_REASON_DUP("ORIG_DCID");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (ch->is_server) {
                 reason = TP_REASON_SERVER_ONLY("ORIG_DCID");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_cid(&pkt, NULL, &cid)) {
                 reason = TP_REASON_MALFORMED("ORIG_DCID");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
             /* Must match our initial DCID. */
             if (!ossl_quic_conn_id_eq(&ch->init_dcid, &cid)) {
                 reason = TP_REASON_EXPECTED_VALUE("ORIG_DCID");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 #endif
 
@@ -1320,28 +1320,28 @@ static int ch_on_transport_params(const unsigned char *params,
         case QUIC_TPARAM_RETRY_SCID:
             if (ch->is_server) {
                 reason = TP_REASON_SERVER_ONLY("RETRY_SCID");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (got_retry_scid) {
                 reason = TP_REASON_DUP("RETRY_SCID");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ch->doing_retry) {
                 reason = TP_REASON_NOT_RETRY("RETRY_SCID");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_cid(&pkt, NULL, &cid)) {
                 reason = TP_REASON_MALFORMED("RETRY_SCID");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             /* Must match Retry packet SCID. */
             if (!ossl_quic_conn_id_eq(&ch->retry_scid, &cid)) {
                 reason = TP_REASON_EXPECTED_VALUE("RETRY_SCID");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             got_retry_scid = 1;
@@ -1351,17 +1351,17 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_initial_scid) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("INITIAL_SCID");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_cid(&pkt, NULL, &cid)) {
                 reason = TP_REASON_MALFORMED("INITIAL_SCID");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_conn_id_eq(&ch->init_scid, &cid)) {
                 reason = TP_REASON_EXPECTED_VALUE("INITIAL_SCID");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             got_initial_scid = 1;
@@ -1371,12 +1371,12 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_initial_max_data) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("INITIAL_MAX_DATA");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_int(&pkt, &id, &v)) {
                 reason = TP_REASON_MALFORMED("INITIAL_MAX_DATA");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             ossl_quic_txfc_bump_cwm(&ch->conn_txfc, v);
@@ -1387,12 +1387,12 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_initial_max_stream_data_bidi_local) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("INITIAL_MAX_STREAM_DATA_BIDI_LOCAL");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_int(&pkt, &id, &v)) {
                 reason = TP_REASON_MALFORMED("INITIAL_MAX_STREAM_DATA_BIDI_LOCAL");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             /*
@@ -1407,12 +1407,12 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_initial_max_stream_data_bidi_remote) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("INITIAL_MAX_STREAM_DATA_BIDI_REMOTE");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_int(&pkt, &id, &v)) {
                 reason = TP_REASON_MALFORMED("INITIAL_MAX_STREAM_DATA_BIDI_REMOTE");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             /*
@@ -1430,12 +1430,12 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_initial_max_stream_data_uni) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("INITIAL_MAX_STREAM_DATA_UNI");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_int(&pkt, &id, &v)) {
                 reason = TP_REASON_MALFORMED("INITIAL_MAX_STREAM_DATA_UNI");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             ch->rx_init_max_stream_data_uni = v;
@@ -1449,13 +1449,13 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_ack_delay_exp) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("ACK_DELAY_EXP");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_int(&pkt, &id, &v)
                 || v > QUIC_MAX_ACK_DELAY_EXP) {
                 reason = TP_REASON_MALFORMED("ACK_DELAY_EXP");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             ch->rx_ack_delay_exp = (unsigned char)v;
@@ -1466,13 +1466,13 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_max_ack_delay) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("MAX_ACK_DELAY");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_int(&pkt, &id, &v)
                 || v >= (((uint64_t)1) << 14)) {
                 reason = TP_REASON_MALFORMED("MAX_ACK_DELAY");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             ch->rx_max_ack_delay = v;
@@ -1486,13 +1486,13 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_initial_max_streams_bidi) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("INITIAL_MAX_STREAMS_BIDI");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_int(&pkt, &id, &v)
                 || v > (((uint64_t)1) << 60)) {
                 reason = TP_REASON_MALFORMED("INITIAL_MAX_STREAMS_BIDI");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             assert(ch->max_local_streams_bidi == 0);
@@ -1504,13 +1504,13 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_initial_max_streams_uni) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("INITIAL_MAX_STREAMS_UNI");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_int(&pkt, &id, &v)
                 || v > (((uint64_t)1) << 60)) {
                 reason = TP_REASON_MALFORMED("INITIAL_MAX_STREAMS_UNI");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             assert(ch->max_local_streams_uni == 0);
@@ -1522,12 +1522,12 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_max_idle_timeout) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("MAX_IDLE_TIMEOUT");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_int(&pkt, &id, &v)) {
                 reason = TP_REASON_MALFORMED("MAX_IDLE_TIMEOUT");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             ch->max_idle_timeout_remote_req = v;
@@ -1545,13 +1545,13 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_max_udp_payload_size) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("MAX_UDP_PAYLOAD_SIZE");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_int(&pkt, &id, &v)
                 || v < QUIC_MIN_INITIAL_DGRAM_LEN) {
                 reason = TP_REASON_MALFORMED("MAX_UDP_PAYLOAD_SIZE");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             ch->rx_max_udp_payload_size = v;
@@ -1562,13 +1562,13 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_active_conn_id_limit) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("ACTIVE_CONN_ID_LIMIT");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_int(&pkt, &id, &v)
                 || v < QUIC_MIN_ACTIVE_CONN_ID_LIMIT) {
                 reason = TP_REASON_MALFORMED("ACTIVE_CONN_ID_LIMIT");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             ch->rx_active_conn_id_limit = v;
@@ -1578,7 +1578,7 @@ static int ch_on_transport_params(const unsigned char *params,
         case QUIC_TPARAM_STATELESS_RESET_TOKEN:
             if (got_stateless_reset_token) {
                 reason = TP_REASON_DUP("STATELESS_RESET_TOKEN");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             /*
@@ -1587,18 +1587,18 @@ static int ch_on_transport_params(const unsigned char *params,
              */
             if (ch->is_server) {
                 reason = TP_REASON_SERVER_ONLY("STATELESS_RESET_TOKEN");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             body = ossl_quic_wire_decode_transport_param_bytes(&pkt, &id, &len);
             if (body == NULL || len != QUIC_STATELESS_RESET_TOKEN_LEN) {
                 reason = TP_REASON_MALFORMED("STATELESS_RESET_TOKEN");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
             if (!ossl_quic_srtm_add(ch->srtm, ch, ch->cur_remote_seq_num,
                                     (const QUIC_STATELESS_RESET_TOKEN *)body)) {
                 reason = TP_REASON_INTERNAL_ERROR("STATELESS_RESET_TOKEN");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             stateless_reset_token_p     = body;
@@ -1609,7 +1609,7 @@ static int ch_on_transport_params(const unsigned char *params,
             /* TODO(QUIC FUTURE): Handle preferred address. */
             if (got_preferred_addr) {
                 reason = TP_REASON_DUP("PREFERRED_ADDR");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             /*
@@ -1622,22 +1622,22 @@ static int ch_on_transport_params(const unsigned char *params,
              */
             if (ch->is_server) {
                 reason = TP_REASON_SERVER_ONLY("PREFERRED_ADDR");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (ch->cur_remote_dcid.id_len == 0) {
                 reason = "PREFERRED_ADDR provided for zero-length CID";
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (!ossl_quic_wire_decode_transport_param_preferred_addr(&pkt, &pfa)) {
                 reason = TP_REASON_MALFORMED("PREFERRED_ADDR");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             if (pfa.cid.id_len == 0) {
                 reason = "zero-length CID in PREFERRED_ADDR";
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             got_preferred_addr = 1;
@@ -1648,13 +1648,13 @@ static int ch_on_transport_params(const unsigned char *params,
             if (got_disable_active_migration) {
                 /* must not appear more than once */
                 reason = TP_REASON_DUP("DISABLE_ACTIVE_MIGRATION");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             body = ossl_quic_wire_decode_transport_param_bytes(&pkt, &id, &len);
             if (body == NULL || len > 0) {
                 reason = TP_REASON_MALFORMED("DISABLE_ACTIVE_MIGRATION");
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
             }
 
             got_disable_active_migration = 1;
@@ -1673,7 +1673,7 @@ static int ch_on_transport_params(const unsigned char *params,
             body = ossl_quic_wire_decode_transport_param_bytes(&pkt, &id,
                                                                &len);
             if (body == NULL)
-                goto malformed;
+                goto malformed; /* LCOV_EXCL_BR_LINE */
 
             break;
         }
@@ -1681,18 +1681,18 @@ static int ch_on_transport_params(const unsigned char *params,
 
     if (!got_initial_scid) {
         reason = TP_REASON_REQUIRED("INITIAL_SCID");
-        goto malformed;
+        goto malformed; /* LCOV_EXCL_BR_LINE */
     }
 
     if (!ch->is_server) {
         if (!got_orig_dcid) {
             reason = TP_REASON_REQUIRED("ORIG_DCID");
-            goto malformed;
+            goto malformed; /* LCOV_EXCL_BR_LINE */
         }
 
         if (ch->doing_retry && !got_retry_scid) {
             reason = TP_REASON_REQUIRED("RETRY_SCID");
-            goto malformed;
+            goto malformed; /* LCOV_EXCL_BR_LINE */
         }
     }
 
@@ -1809,95 +1809,95 @@ static int ch_generate_transport_params(QUIC_CHANNEL *ch)
         id_to_use = &ch->odcid;
 
     if (ch->local_transport_params != NULL || ch->got_local_transport_params)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if ((buf_mem = BUF_MEM_new()) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!WPACKET_init(&wpkt, buf_mem))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     wpkt_valid = 1;
 
     if (ossl_quic_wire_encode_transport_param_bytes(&wpkt, QUIC_TPARAM_DISABLE_ACTIVE_MIGRATION,
                                                     NULL, 0) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (ch->is_server) {
         if (!ossl_quic_wire_encode_transport_param_cid(&wpkt, QUIC_TPARAM_ORIG_DCID,
                                                        id_to_use))
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
 
         if (!ossl_quic_wire_encode_transport_param_cid(&wpkt, QUIC_TPARAM_INITIAL_SCID,
                                                        &ch->cur_local_cid))
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
         if (ch->odcid.id_len != 0)
             if (!ossl_quic_wire_encode_transport_param_cid(&wpkt,
                                                            QUIC_TPARAM_RETRY_SCID,
                                                            &ch->init_dcid))
-                goto err;
+                goto err; /* LCOV_EXCL_BR_LINE */
     } else {
         if (!ossl_quic_wire_encode_transport_param_cid(&wpkt, QUIC_TPARAM_INITIAL_SCID,
                                                        &ch->init_scid))
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     if (!ossl_quic_wire_encode_transport_param_int(&wpkt, QUIC_TPARAM_MAX_IDLE_TIMEOUT,
                                                    ch->max_idle_timeout_local_req))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_wire_encode_transport_param_int(&wpkt, QUIC_TPARAM_MAX_UDP_PAYLOAD_SIZE,
                                                    QUIC_MIN_INITIAL_DGRAM_LEN))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_wire_encode_transport_param_int(&wpkt, QUIC_TPARAM_ACTIVE_CONN_ID_LIMIT,
                                                    QUIC_MIN_ACTIVE_CONN_ID_LIMIT))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (ch->tx_max_ack_delay != QUIC_DEFAULT_MAX_ACK_DELAY
         && !ossl_quic_wire_encode_transport_param_int(&wpkt, QUIC_TPARAM_MAX_ACK_DELAY,
                                                       ch->tx_max_ack_delay))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_wire_encode_transport_param_int(&wpkt, QUIC_TPARAM_INITIAL_MAX_DATA,
                                                    ossl_quic_rxfc_get_cwm(&ch->conn_rxfc)))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /* Send the default CWM for a new RXFC. */
     if (!ossl_quic_wire_encode_transport_param_int(&wpkt, QUIC_TPARAM_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL,
                                                    ch->tx_init_max_stream_data_bidi_local))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_wire_encode_transport_param_int(&wpkt, QUIC_TPARAM_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE,
                                                    ch->tx_init_max_stream_data_bidi_remote))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_wire_encode_transport_param_int(&wpkt, QUIC_TPARAM_INITIAL_MAX_STREAM_DATA_UNI,
                                                    ch->tx_init_max_stream_data_uni))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_wire_encode_transport_param_int(&wpkt, QUIC_TPARAM_INITIAL_MAX_STREAMS_BIDI,
                                                    ossl_quic_rxfc_get_cwm(&ch->max_streams_bidi_rxfc)))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_wire_encode_transport_param_int(&wpkt, QUIC_TPARAM_INITIAL_MAX_STREAMS_UNI,
                                                    ossl_quic_rxfc_get_cwm(&ch->max_streams_uni_rxfc)))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!WPACKET_finish(&wpkt))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     wpkt_valid = 0;
 
     if (!WPACKET_get_total_written(&wpkt, &buf_len))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ch->local_transport_params = (unsigned char *)buf_mem->data;
     buf_mem->data = NULL;
 
     if (!ossl_quic_tls_set_transport_params(ch->qtls, ch->local_transport_params,
                                             buf_len))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
 #ifndef OPENSSL_NO_QLOG
     QLOG_EVENT_BEGIN(ch_get_qlog(ch), transport, parameters_set)
@@ -3230,37 +3230,37 @@ static int ch_enqueue_retire_conn_id(QUIC_CHANNEL *ch, uint64_t seq_num)
     ossl_quic_srtm_remove(ch->srtm, ch, seq_num);
 
     if ((buf_mem = BUF_MEM_new()) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!WPACKET_init(&wpkt, buf_mem))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_wire_encode_frame_retire_conn_id(&wpkt, seq_num)) {
         WPACKET_cleanup(&wpkt);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     WPACKET_finish(&wpkt);
     if (!WPACKET_get_total_written(&wpkt, &l))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (ossl_quic_cfq_add_frame(ch->cfq, 1, QUIC_PN_SPACE_APP,
                                 OSSL_QUIC_FRAME_TYPE_RETIRE_CONN_ID, 0,
                                 (unsigned char *)buf_mem->data, l,
                                 free_frame_data, NULL) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     buf_mem->data = NULL;
     BUF_MEM_free(buf_mem);
     return 1;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     ossl_quic_channel_raise_protocol_error(ch,
                                            OSSL_QUIC_ERR_INTERNAL_ERROR,
                                            OSSL_QUIC_FRAME_TYPE_NEW_CONN_ID,
                                            "internal error enqueueing retire conn id");
     BUF_MEM_free(buf_mem);
-    return 0;
+    return 0; /* LCOV_EXCL_BR_END */
 }
 
 void ossl_quic_channel_on_new_conn_id(QUIC_CHANNEL *ch,
@@ -3730,15 +3730,15 @@ static int ch_init_new_stream(QUIC_CHANNEL *ch, QUIC_STREAM *qs,
 
     if (can_send)
         if ((qs->sstream = ossl_quic_sstream_new(INIT_APP_BUF_LEN)) == NULL)
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
 
     if (can_recv)
         if ((qs->rstream = ossl_quic_rstream_new(NULL, NULL, 0)) == NULL)
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
 
     /* TXFC */
     if (!ossl_quic_txfc_init(&qs->txfc, &ch->conn_txfc))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (ch->got_remote_transport_params) {
         /*
@@ -3774,16 +3774,16 @@ static int ch_init_new_stream(QUIC_CHANNEL *ch, QUIC_STREAM *qs,
                              rxfc_wnd,
                              DEFAULT_STREAM_RXFC_MAX_WND_MUL * rxfc_wnd,
                              get_time, ch))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     return 1;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     ossl_quic_sstream_free(qs->sstream);
     qs->sstream = NULL;
     ossl_quic_rstream_free(qs->rstream);
     qs->rstream = NULL;
-    return 0;
+    return 0; /* LCOV_EXCL_BR_END */
 }
 
 static uint64_t *ch_get_local_stream_next_ordinal_ptr(QUIC_CHANNEL *ch,
@@ -3862,14 +3862,14 @@ QUIC_STREAM *ossl_quic_channel_new_stream_local(QUIC_CHANNEL *ch, int is_uni)
 
     /* Locally-initiated stream, so we always want a send buffer. */
     if (!ch_init_new_stream(ch, qs, /*can_send=*/1, /*can_recv=*/!is_uni))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     ++*p_next_ordinal;
     return qs;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     ossl_quic_stream_map_release(&ch->qsm, qs);
-    return NULL;
+    return NULL; /* LCOV_EXCL_BR_END */
 }
 
 QUIC_STREAM *ossl_quic_channel_new_stream_remote(QUIC_CHANNEL *ch,
@@ -3895,7 +3895,7 @@ QUIC_STREAM *ossl_quic_channel_new_stream_remote(QUIC_CHANNEL *ch,
         return NULL;
 
     if (!ch_init_new_stream(ch, qs, /*can_send=*/!is_uni, /*can_recv=*/1))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (ch->incoming_stream_auto_reject)
         ossl_quic_channel_reject_stream(ch, qs);
@@ -3904,9 +3904,9 @@ QUIC_STREAM *ossl_quic_channel_new_stream_remote(QUIC_CHANNEL *ch,
 
     return qs;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     ossl_quic_stream_map_release(&ch->qsm, qs);
-    return NULL;
+    return NULL; /* LCOV_EXCL_BR_END */
 }
 
 void ossl_quic_channel_set_incoming_stream_auto_reject(QUIC_CHANNEL *ch,

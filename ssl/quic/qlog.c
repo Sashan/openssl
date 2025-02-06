@@ -67,31 +67,31 @@ QLOG *ossl_qlog_new(const QLOG_TRACE_INFO *info)
 
     if (info->title != NULL
         && (qlog->info.title = OPENSSL_strdup(info->title)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (info->description != NULL
         && (qlog->info.description = OPENSSL_strdup(info->description)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (info->group_id != NULL
         && (qlog->info.group_id = OPENSSL_strdup(info->group_id)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (info->override_impl_name != NULL
         && (qlog->info.override_impl_name
                 = OPENSSL_strdup(info->override_impl_name)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_json_init(&qlog->json, NULL,
                         OSSL_JSON_FLAG_IJSON | OSSL_JSON_FLAG_SEQ))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (qlog->info.now_cb == NULL)
         qlog->info.now_cb = default_now;
 
     return qlog;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     if (qlog != NULL) {
         OPENSSL_free((char *)qlog->info.title);
         OPENSSL_free((char *)qlog->info.description);
@@ -99,7 +99,7 @@ err:
         OPENSSL_free((char *)qlog->info.override_impl_name);
         OPENSSL_free(qlog);
     }
-    return NULL;
+    return NULL; /* LCOV_EXCL_BR_STOP */
 }
 
 QLOG *ossl_qlog_new_from_env(const QLOG_TRACE_INFO *info)
@@ -137,24 +137,24 @@ QLOG *ossl_qlog_new_from_env(const QLOG_TRACE_INFO *info)
 
     qlog = ossl_qlog_new(info);
     if (qlog == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_qlog_set_sink_filename(qlog, filename))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (qfilter == NULL || qfilter[0] == '\0')
         qfilter = "*";
 
     if (!ossl_qlog_set_filter(qlog, qfilter))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     OPENSSL_free(filename);
     return qlog;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     OPENSSL_free(filename);
     ossl_qlog_free(qlog);
-    return NULL;
+    return NULL; /* LCOV_EXCL_BR_STOP */
 }
 
 void ossl_qlog_free(QLOG *qlog)

@@ -1034,7 +1034,7 @@ OSSL_ACKM *ossl_ackm_new(OSSL_TIME (*now)(void *arg),
         ackm->largest_acked_pkt[i] = QUIC_PN_INVALID;
         ackm->rx_ack_flush_deadline[i] = ossl_time_infinite();
         if (tx_pkt_history_init(&ackm->tx_history[i]) < 1)
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     for (i = 0; i < (int)OSSL_NELEM(ackm->rx_history); ++i)
@@ -1051,12 +1051,12 @@ OSSL_ACKM *ossl_ackm_new(OSSL_TIME (*now)(void *arg),
 
     return ackm;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     while (--i >= 0)
         tx_pkt_history_destroy(&ackm->tx_history[i]);
 
     OPENSSL_free(ackm);
-    return NULL;
+    return NULL; /* LCOV_EXCL_BR_END */
 }
 
 void ossl_ackm_free(OSSL_ACKM *ackm)

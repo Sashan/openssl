@@ -906,7 +906,7 @@ int ossl_quic_tx_packetiser_generate(OSSL_QUIC_TX_PACKETISER *txp,
         rc = txp_generate_for_el(txp, &pkt[enc_level],
                                  conn_close_enc_level == enc_level);
         if (rc != TXP_ERR_SUCCESS)
-            goto out;
+            goto out; /* LCOV_EXCL_BR_LINE */
 
         if (pkt[enc_level].force_pad)
             /*
@@ -955,7 +955,7 @@ int ossl_quic_tx_packetiser_generate(OSSL_QUIC_TX_PACKETISER *txp,
             size_t deficit = min_dpl - total_dgram_size;
 
             if (!txp_pkt_append_padding(&pkt[pad_el], txp, deficit))
-                goto out;
+                goto out; /* LCOV_EXCL_BR_LINE */
 
             total_dgram_size += deficit;
 
@@ -975,7 +975,7 @@ int ossl_quic_tx_packetiser_generate(OSSL_QUIC_TX_PACKETISER *txp,
          */
         if (total_dgram_size < min_dpl) {
             res = 1;
-            goto out;
+            goto out; /* LCOV_EXCL_BR_LINE */
         }
     }
 
@@ -995,7 +995,7 @@ int ossl_quic_tx_packetiser_generate(OSSL_QUIC_TX_PACKETISER *txp,
         if (!ossl_quic_tx_packetiser_check_unvalidated_credit(txp,
                                                               pkt[enc_level].h.bytes_appended)) {
             res = TXP_ERR_SPACE;
-            goto out;
+            goto out; /* LCOV_EXCL_BR_LINE */
         }
         ossl_quic_tx_packetiser_consume_unvalidated_credit(txp, pkt[enc_level].h.bytes_appended);
 
@@ -1016,7 +1016,7 @@ int ossl_quic_tx_packetiser_generate(OSSL_QUIC_TX_PACKETISER *txp,
             pkt[enc_level].tpkt = NULL; /* don't free */
 
         if (!rc)
-            goto out;
+            goto out; /* LCOV_EXCL_BR_LINE */
 
         ++pkts_done;
 
@@ -2321,12 +2321,12 @@ static int txp_generate_stream_frames(OSSL_QUIC_TX_PACKETISER *txp,
     for (i = 0; i < 2; ++i) {
         if (!txp_plan_stream_chunk(txp, h, sstream, stream_txfc, i, &chunks[i],
                                    conn_consumed))
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
 
         if (i == 0 && !chunks[i].valid) {
             /* No chunks, nothing to do. */
             rc = 1;
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
         }
         chunks[i].shdr.stream_id = id;
     }
@@ -2337,13 +2337,13 @@ static int txp_generate_stream_frames(OSSL_QUIC_TX_PACKETISER *txp,
         if (!chunks[i % 2].valid) {
             /* Out of chunks; we're done. */
             rc = 1;
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
         }
 
         if (space_left < MIN_FRAME_SIZE_STREAM) {
             *packet_full = 1;
             rc = 1;
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
         }
 
         if (!ossl_assert(!h->done_implicit))
@@ -2352,7 +2352,7 @@ static int txp_generate_stream_frames(OSSL_QUIC_TX_PACKETISER *txp,
              * implicit-length unless we filled the packet or didn't have
              * another stream to handle, so this should not be possible.
              */
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
 
         shdr = &chunks[i % 2].shdr;
         orig_len = chunks[i % 2].orig_len;
@@ -2360,7 +2360,7 @@ static int txp_generate_stream_frames(OSSL_QUIC_TX_PACKETISER *txp,
             /* Load next chunk for lookahead. */
             if (!txp_plan_stream_chunk(txp, h, sstream, stream_txfc, i + 1,
                                        &chunks[(i + 1) % 2], conn_consumed))
-                goto err;
+                goto err; /* LCOV_EXCL_BR_LINE */
 
         /*
          * Find best fit (header length, payload length) combination for if we
@@ -2372,7 +2372,7 @@ static int txp_generate_stream_frames(OSSL_QUIC_TX_PACKETISER *txp,
                                   &hdr_len_implicit, &payload_len_implicit)) {
             *packet_full = 1;
             rc = 1;
-            goto err; /* can't fit anything */
+            goto err;  /* LCOV_EXCL_BR_LINE */ /* can't fit anything */
         }
 
         /*
@@ -2405,7 +2405,7 @@ static int txp_generate_stream_frames(OSSL_QUIC_TX_PACKETISER *txp,
                                       &hdr_len_explicit, &payload_len_explicit)) {
                 *packet_full = 1;
                 rc = 1;
-                goto err; /* can't fit anything */
+                goto err;  /* LCOV_EXCL_BR_LINE */ /* can't fit anything */
             }
 
             shdr->len = payload_len_explicit;
@@ -2435,23 +2435,23 @@ static int txp_generate_stream_frames(OSSL_QUIC_TX_PACKETISER *txp,
          * the stream data.)
          */
         if (!txp_el_ensure_iovec(&txp->el[enc_level], h->num_iovec + 3))
-            goto err; /* alloc error */
+            goto err;  /* LCOV_EXCL_BR_LINE */ /* alloc error */
 
         /* Encode the header. */
         wpkt = tx_helper_begin(h);
         if (wpkt == NULL)
-            goto err; /* alloc error */
+            goto err;  /* LCOV_EXCL_BR_LINE */ /* alloc error */
 
         if (!ossl_assert(ossl_quic_wire_encode_frame_stream_hdr(wpkt, shdr))) {
             /* (Should not be possible.) */
             tx_helper_rollback(h);
             *packet_full = 1;
             rc = 1;
-            goto err; /* can't fit */
+            goto err;  /* LCOV_EXCL_BR_LINE */ /* can't fit */
         }
 
         if (!tx_helper_commit(h))
-            goto err; /* alloc error */
+            goto err;  /* LCOV_EXCL_BR_LINE */ /* alloc error */
 
         /* Add payload iovecs to the helper (infallible). */
         for (j = 0; j < chunks[i % 2].num_stream_iovec; ++j)
@@ -2475,7 +2475,7 @@ static int txp_generate_stream_frames(OSSL_QUIC_TX_PACKETISER *txp,
         chunk.has_stop_sending  = 0;
         chunk.has_reset_stream  = 0;
         if (!ossl_quic_txpim_pkt_append_chunk(tpkt, &chunk))
-            goto err; /* alloc error */
+            goto err;  /* LCOV_EXCL_BR_LINE */ /* alloc error */
 
         if (shdr->len < orig_len) {
             /*
@@ -2483,7 +2483,7 @@ static int txp_generate_stream_frames(OSSL_QUIC_TX_PACKETISER *txp,
              * want to try the next chunk
              */
             rc = 1;
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
         }
     }
 
@@ -2688,13 +2688,13 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
 
     /* Maximum PN reached? */
     if (!ossl_quic_pn_valid(txp->next_pn[pn_space]))
-        goto fatal_err;
+        goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_assert(pkt->tpkt == NULL))
-        goto fatal_err;
+        goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
     if ((pkt->tpkt = tpkt = ossl_quic_txpim_pkt_alloc(txp->args.txpim)) == NULL)
-        goto fatal_err;
+        goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
     /*
      * Frame Serialization
@@ -2709,14 +2709,14 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
         WPACKET *wpkt = tx_helper_begin(h);
 
         if (wpkt == NULL)
-            goto fatal_err;
+            goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
         if (ossl_quic_wire_encode_frame_handshake_done(wpkt)) {
             tpkt->had_handshake_done_frame = 1;
             have_ack_eliciting             = 1;
 
             if (!tx_helper_commit(h))
-                goto fatal_err;
+                goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
             tx_helper_unrestrict(h); /* no longer need PING */
         } else {
@@ -2733,14 +2733,14 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
         uint64_t cwm = ossl_quic_rxfc_get_cwm(txp->args.conn_rxfc);
 
         if (wpkt == NULL)
-            goto fatal_err;
+            goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
         if (ossl_quic_wire_encode_frame_max_data(wpkt, cwm)) {
             tpkt->had_max_data_frame = 1;
             have_ack_eliciting       = 1;
 
             if (!tx_helper_commit(h))
-                goto fatal_err;
+                goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
             tx_helper_unrestrict(h); /* no longer need PING */
         } else {
@@ -2758,7 +2758,7 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
             = ossl_quic_rxfc_get_cwm(txp->args.max_streams_bidi_rxfc);
 
         if (wpkt == NULL)
-            goto fatal_err;
+            goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
         if (ossl_quic_wire_encode_frame_max_streams(wpkt, /*is_uni=*/0,
                                                     max_streams)) {
@@ -2766,7 +2766,7 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
             have_ack_eliciting               = 1;
 
             if (!tx_helper_commit(h))
-                goto fatal_err;
+                goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
             tx_helper_unrestrict(h); /* no longer need PING */
         } else {
@@ -2784,7 +2784,7 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
             = ossl_quic_rxfc_get_cwm(txp->args.max_streams_uni_rxfc);
 
         if (wpkt == NULL)
-            goto fatal_err;
+            goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
         if (ossl_quic_wire_encode_frame_max_streams(wpkt, /*is_uni=*/1,
                                                     max_streams)) {
@@ -2792,7 +2792,7 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
             have_ack_eliciting              = 1;
 
             if (!tx_helper_commit(h))
-                goto fatal_err;
+                goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
             tx_helper_unrestrict(h); /* no longer need PING */
         } else {
@@ -2860,7 +2860,7 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
             break;
 
         if (!tx_helper_append_iovec(h, encoded, encoded_len))
-            goto fatal_err;
+            goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
         ossl_quic_txpim_pkt_add_cfq_item(tpkt, cfq_item);
 
@@ -2883,14 +2883,14 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
     /* CRYPTO Frames */
     if (a.allow_crypto)
         if (!txp_generate_crypto_frames(txp, pkt, &have_ack_eliciting))
-            goto fatal_err;
+            goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
     /* Stream-specific frames */
     if (a.allow_stream_rel && txp->handshake_complete)
         if (!txp_generate_stream_related(txp, pkt,
                                          &have_ack_eliciting,
                                          &pkt->stream_head))
-            goto fatal_err;
+            goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
     /* PING */
     tx_helper_unrestrict(h);
@@ -2901,7 +2901,7 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
         assert(h->reserve > 0);
         wpkt = tx_helper_begin(h);
         if (wpkt == NULL)
-            goto fatal_err;
+            goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
         if (!ossl_quic_wire_encode_frame_ping(wpkt)
             || !tx_helper_commit(h))
@@ -2909,7 +2909,7 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
              * We treat a request to be ACK-eliciting as a requirement, so this
              * is an error.
              */
-            goto fatal_err;
+            goto fatal_err; /* LCOV_EXCL_BR_LINE */
 
         have_ack_eliciting = 1;
     }
@@ -2938,7 +2938,7 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
     /* Done. */
     return rc;
 
-fatal_err:
+fatal_err: /* LCOV_EXCL_BR_START */
     /*
      * Handler for fatal errors, i.e. errors causing us to abort the entire
      * packet rather than just one frame. Examples of such errors include
@@ -2948,7 +2948,7 @@ fatal_err:
         ossl_quic_txpim_pkt_release(txp->args.txpim, tpkt);
         pkt->tpkt = NULL;
     }
-    return TXP_ERR_INTERNAL;
+    return TXP_ERR_INTERNAL; /* LCOV_EXCL_BR_END */
 }
 
 /*

@@ -143,7 +143,7 @@ static int el_setup_keyslot(OSSL_QRL_ENC_LEVEL_SET *els,
                               sizeof(quic_v1_iv_label),
                               NULL, 0,
                               el->iv[keyslot], iv_len, 1))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /* Derive "quic key" key. */
     if (!tls13_hkdf_expand_ex(el->libctx, el->propq,
@@ -153,29 +153,29 @@ static int el_setup_keyslot(OSSL_QRL_ENC_LEVEL_SET *els,
                               sizeof(quic_v1_key_label),
                               NULL, 0,
                               key, key_len, 1))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /* Create and initialise cipher context. */
     if ((cipher = EVP_CIPHER_fetch(el->libctx, cipher_name, el->propq)) == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_EVP_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     if ((cctx = EVP_CIPHER_CTX_new()) == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_EVP_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     if (!ossl_assert(iv_len == (size_t)EVP_CIPHER_get_iv_length(cipher))
         || !ossl_assert(key_len == (size_t)EVP_CIPHER_get_key_length(cipher))) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /* IV will be changed on RX/TX so we don't need to use a real value here. */
     if (!EVP_CipherInit_ex(cctx, cipher, NULL, key, el->iv[keyslot], 0)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_EVP_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     el->cctx[keyslot] = cctx;
@@ -185,12 +185,12 @@ static int el_setup_keyslot(OSSL_QRL_ENC_LEVEL_SET *els,
     EVP_CIPHER_free(cipher);
     return 1;
 
- err:
+ err: /* LCOV_EXCL_BR_START */
     EVP_CIPHER_CTX_free(cctx);
     EVP_CIPHER_free(cipher);
     OPENSSL_cleanse(el->iv[keyslot], sizeof(el->iv[keyslot]));
     OPENSSL_cleanse(key, sizeof(key));
-    return 0;
+    return 0; /* LCOV_EXCL_BR_END */
 }
 
 int ossl_qrl_enc_level_set_provide_secret(OSSL_QRL_ENC_LEVEL_SET *els,
@@ -269,12 +269,12 @@ int ossl_qrl_enc_level_set_provide_secret(OSSL_QRL_ENC_LEVEL_SET *els,
                               sizeof(quic_v1_hp_label),
                               NULL, 0,
                               hpr_key, hpr_key_len, 1))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /* Setup KS0 (or KS1 if init_key_phase_bit), our initial keyslot. */
     if (!el_setup_keyslot(els, enc_level, QRL_EL_STATE_PROV_NORMAL,
                           init_keyslot, secret, secret_len))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     have_ks0 = 1;
 
@@ -287,13 +287,13 @@ int ossl_qrl_enc_level_set_provide_secret(OSSL_QRL_ENC_LEVEL_SET *els,
                                   sizeof(quic_v1_ku_label),
                                   NULL, 0,
                                   is_tx ? el->ku : ku_key, secret_len, 1))
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
 
         if (!is_tx) {
             /* Setup KS1 (or KS0 if init_key_phase_bit), our next keyslot. */
             if (!el_setup_keyslot(els, enc_level, QRL_EL_STATE_PROV_NORMAL,
                                   !init_keyslot, ku_key, secret_len))
-                goto err;
+                goto err; /* LCOV_EXCL_BR_LINE */
 
             have_ks1 = 1;
 
@@ -305,7 +305,7 @@ int ossl_qrl_enc_level_set_provide_secret(OSSL_QRL_ENC_LEVEL_SET *els,
                                       sizeof(quic_v1_ku_label),
                                       NULL, 0,
                                       el->ku, secret_len, 1))
-                goto err;
+                goto err; /* LCOV_EXCL_BR_LINE */
         }
     }
 
@@ -314,7 +314,7 @@ int ossl_qrl_enc_level_set_provide_secret(OSSL_QRL_ENC_LEVEL_SET *els,
                                       libctx, propq,
                                       ossl_qrl_get_suite_hdr_prot_cipher_id(suite_id),
                                       hpr_key, hpr_key_len))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     /*
      * We are now provisioned: KS0 has our current key (for key epoch 0), KS1
@@ -327,7 +327,7 @@ int ossl_qrl_enc_level_set_provide_secret(OSSL_QRL_ENC_LEVEL_SET *els,
     el->state = QRL_EL_STATE_PROV_NORMAL;
     return 1;
 
- err:
+ err: /* LCOV_EXCL_BR_START */
     el->suite_id = 0;
     el->md = NULL;
     OPENSSL_cleanse(hpr_key, sizeof(hpr_key));
@@ -339,7 +339,7 @@ int ossl_qrl_enc_level_set_provide_secret(OSSL_QRL_ENC_LEVEL_SET *els,
         el_teardown_keyslot(els, enc_level, !init_keyslot);
     if (own_md)
         EVP_MD_free(md);
-    return 0;
+    return 0; /* LCOV_EXCL_BR_END */
 }
 
 int ossl_qrl_enc_level_set_key_update(OSSL_QRL_ENC_LEVEL_SET *els,

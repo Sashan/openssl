@@ -120,7 +120,7 @@ quic_new_record_layer(OSSL_LIB_CTX *libctx, const char *propq, int vers,
     rl->level = level;
     if (!quic_set1_bio(rl, transport)) {
         QUIC_TLS_FATAL(rl, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
     rl->cbarg = cbarg;
     *retrl = rl;
@@ -157,7 +157,7 @@ quic_new_record_layer(OSSL_LIB_CTX *libctx, const char *propq, int vers,
 
     default:
         QUIC_TLS_FATAL(rl, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     if (direction == OSSL_RECORD_DIRECTION_READ)
@@ -173,14 +173,14 @@ quic_new_record_layer(OSSL_LIB_CTX *libctx, const char *propq, int vers,
         suite_id = QRL_SUITE_CHACHA20POLY1305;
     } else {
         QUIC_TLS_FATAL(rl, SSL_AD_INTERNAL_ERROR, SSL_R_UNKNOWN_CIPHER_TYPE);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /* We pass a ref to the md in a successful yield_secret_cb call */
     /* TODO(QUIC FUTURE): This cast is horrible. We should try and remove it */
     if (!EVP_MD_up_ref((EVP_MD *)kdfdigest)) {
         QUIC_TLS_FATAL(rl, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     if (!rl->qtls->args.yield_secret_cb(enc_level, qdir, suite_id,
@@ -188,14 +188,14 @@ quic_new_record_layer(OSSL_LIB_CTX *libctx, const char *propq, int vers,
                                         rl->qtls->args.yield_secret_cb_arg)) {
         QUIC_TLS_FATAL(rl, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         EVP_MD_free((EVP_MD *)kdfdigest);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     return 1;
- err:
+ err: /* LCOV_EXCL_BR_START */
     *retrl = NULL;
     quic_free(rl);
-    return 0;
+    return 0; /* LXOC_EXCL_BR_END */
 }
 
 static int quic_free(OSSL_RECORD_LAYER *rl)

@@ -817,7 +817,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
                                        qrx->short_conn_id_len,
                                        need_second_decode, 0, &rxe->hdr, &ptrs,
                                        NULL))
-        goto malformed;
+        goto malformed; /* LCOV_EXCL_BR_LINE */
 
     /*
      * Our successful decode above included an intelligible length and the
@@ -842,7 +842,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
          * Already processed packets are handled identically to malformed
          * packets; i.e., they are ignored.
          */
-        goto malformed;
+        goto malformed; /* LCOV_EXCL_BR_LINE */
 
     if (!ossl_quic_pkt_type_is_encrypted(rxe->hdr.type)) {
         /*
@@ -857,7 +857,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
              * Allocation failure. EOP will be pointing to the end of the
              * datagram so processing of this datagram will end here.
              */
-            goto malformed;
+            goto malformed; /* LCOV_EXCL_BR_LINE */
 
         /* We are now committed to returning the packet. */
         memcpy(rxe_data(rxe), rxe->hdr.data, rxe->hdr.len);
@@ -892,15 +892,15 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
                  * But we cannot process 1-RTT packets until the handshake is
                  * completed (RFC 9000 s. 5.7).
                  */
-                goto cannot_decrypt;
+                goto cannot_decrypt; /* LCOV_EXCL_BR_LINE */
 
             break;
         case 0:
             /* No keys yet. */
-            goto cannot_decrypt;
+            goto cannot_decrypt; /* LCOV_EXCL_BR_LINE */
         default:
             /* We already discarded keys for this EL, we will never process this.*/
-            goto malformed;
+            goto malformed; /* LCOV_EXCL_BR_LINE */
     }
 
     /*
@@ -929,7 +929,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
          * the token, and then copy it back into the new location of the rxe
          */
         if (!qrx_relocate_buffer(qrx, &rxe, &i, &token, rxe->hdr.token_len))
-            goto malformed;
+            goto malformed; /* LCOV_EXCL_BR_LINE */
 
         rxe->hdr.token = token;
     }
@@ -942,7 +942,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
 
     if (need_second_decode) {
         if (!ossl_quic_hdr_protector_decrypt(&el->hpr, &ptrs))
-            goto malformed;
+            goto malformed; /* LCOV_EXCL_BR_LINE */
 
         /*
          * We have removed header protection, so don't attempt to do it again if
@@ -953,12 +953,12 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
         /* Decode the now unprotected header. */
         if (ossl_quic_wire_decode_pkt_hdr(pkt, qrx->short_conn_id_len,
                                           0, 0, &rxe->hdr, NULL, NULL) != 1)
-            goto malformed;
+            goto malformed; /* LCOV_EXCL_BR_LINE */
     }
 
     /* Validate header and decode PN. */
     if (!qrx_validate_hdr(qrx, rxe))
-        goto malformed;
+        goto malformed; /* LCOV_EXCL_BR_LINE */
 
     if (qrx->msg_callback != NULL)
         qrx->msg_callback(0, OSSL_QUIC1_VERSION, SSL3_RT_QUIC_PACKET, sop,
@@ -980,7 +980,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
          * encounter allocation failures.
          */
         eop = NULL;
-        goto malformed;
+        goto malformed; /* LCOV_EXCL_BR_LINE */
     }
 
     /*
@@ -1000,7 +1000,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
     if (!qrx_decrypt_pkt_body(qrx, dst, rxe->hdr.data, rxe->hdr.len,
                               &dec_len, sop, aad_len, rxe->pn, enc_level,
                               rxe->hdr.key_phase, &rx_key_epoch))
-        goto malformed;
+        goto malformed; /* LCOV_EXCL_BR_LINE */
 
     /*
      * -----------------------------------------------------
@@ -1014,7 +1014,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
      * rejection of duplicate PNs.
      */
     if (!qrx_validate_hdr_late(qrx, rxe))
-        goto malformed;
+        goto malformed; /* LCOV_EXCL_BR_LINE */
 
     /* Check for a Key Phase bit differing from our expectation. */
     if (rxe->hdr.type == QUIC_PKT_TYPE_1RTT
@@ -1064,7 +1064,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
     ossl_list_rxe_insert_tail(&qrx->rx_pending, rxe);
     return 0; /* success, did not defer; not distinguished from failure */
 
-cannot_decrypt:
+cannot_decrypt: /* LCOV_EXCL_BR_START */
     /*
      * We cannot process this packet right now (but might be able to later). We
      * MUST attempt to process any other packets in the datagram, so defer it
@@ -1106,7 +1106,7 @@ malformed:
         /* We don't care if this fails (see above) */
         ignore_res(PACKET_forward(pkt, PACKET_remaining(pkt)));
     }
-    return 0; /* failure, did not defer; not distinguished from success */
+    return 0;  /* LCOV_EXCL_BR_END */ /* failure, did not defer; not distinguished from success */
 }
 
 /* Process a datagram which was received. */

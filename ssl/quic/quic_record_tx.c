@@ -628,7 +628,7 @@ static int qtx_write(OSSL_QTX *qtx, const OSSL_QTX_PKT *pkt, TXE *txe,
     if (space_left < min_len) {
         /* Not even a possibility of it fitting. */
         ret = QTX_FAIL_INSUFFICIENT_LEN;
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /* Set some fields in the header we are responsible for. */
@@ -641,7 +641,7 @@ static int qtx_write(OSSL_QTX *qtx, const OSSL_QTX_PKT *pkt, TXE *txe,
     if (cur.bytes_remaining == 0) {
         /* No zero-length payloads allowed. */
         ret = QTX_FAIL_GENERIC;
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /* Determine encrypted payload length. */
@@ -659,7 +659,7 @@ static int qtx_write(OSSL_QTX *qtx, const OSSL_QTX_PKT *pkt, TXE *txe,
                                                           hdr);
     if (pred_hdr_len == 0) {
         ret = QTX_FAIL_GENERIC;
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /* We now definitively know our packet length. */
@@ -667,7 +667,7 @@ static int qtx_write(OSSL_QTX *qtx, const OSSL_QTX_PKT *pkt, TXE *txe,
 
     if (pkt_len > space_left) {
         ret = QTX_FAIL_INSUFFICIENT_LEN;
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     if (ossl_quic_pkt_type_has_pn(hdr->type)) {
@@ -675,7 +675,7 @@ static int qtx_write(OSSL_QTX *qtx, const OSSL_QTX_PKT *pkt, TXE *txe,
                                               hdr->pn,
                                               hdr->pn_len)) {
             ret = QTX_FAIL_GENERIC;
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
         }
     }
 
@@ -683,7 +683,7 @@ static int qtx_write(OSSL_QTX *qtx, const OSSL_QTX_PKT *pkt, TXE *txe,
     hdr_start = txe_data(txe) + txe->data_len;
     if (!qtx_write_hdr(qtx, hdr, txe, &ptrs)) {
         ret = QTX_FAIL_GENERIC;
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     hdr_len = (txe_data(txe) + txe->data_len) - hdr_start;
@@ -708,7 +708,7 @@ static int qtx_write(OSSL_QTX *qtx, const OSSL_QTX_PKT *pkt, TXE *txe,
         if (!qtx_encrypt_into_txe(qtx, &cur, txe, enc_level, pkt->pn,
                                   hdr_start, hdr_len, &ptrs)) {
             ret = QTX_FAIL_GENERIC;
-            goto err;
+            goto err; /* LCOV_EXCL_BR_LINE */
         }
 
         assert(txe->data_len - orig_data_len == pkt_len);
@@ -716,13 +716,13 @@ static int qtx_write(OSSL_QTX *qtx, const OSSL_QTX_PKT *pkt, TXE *txe,
 
     return 1;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     /*
      * Restore original length so we don't leave a half-written packet in the
      * TXE.
      */
     txe->data_len = orig_data_len;
-    return ret;
+    return ret; /* LCOV_EXCL_BR_END */
 }
 
 static TXE *qtx_ensure_cons(OSSL_QTX *qtx)

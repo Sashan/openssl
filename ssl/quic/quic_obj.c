@@ -32,7 +32,7 @@ int ossl_quic_obj_init(QUIC_OBJ *obj,
         return 0;
 
     if (!ossl_ssl_init(&obj->ssl, ctx, ctx->method, type))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     obj->domain_flags       = ctx->domain_flags;
     obj->parent_obj         = (QUIC_OBJ *)parent_obj;
@@ -42,15 +42,15 @@ int ossl_quic_obj_init(QUIC_OBJ *obj,
     obj->port               = port;
     obj->req_blocking_mode  = QUIC_BLOCKING_MODE_INHERIT;
     if (!obj_update_cache(obj))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     obj->init_done          = 1;
     return 1;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     obj->is_event_leader = 0;
     obj->is_port_leader  = 0;
-    return 0;
+    return 0; /* LCOV_EXCL_BR_END */
 }
 
 static int obj_update_cache(QUIC_OBJ *obj)

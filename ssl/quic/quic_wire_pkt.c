@@ -45,13 +45,13 @@ int ossl_quic_hdr_protector_init(QUIC_HDR_PROTECTOR *hpr,
     if (hpr->cipher == NULL
         || quic_hp_key_len != (size_t)EVP_CIPHER_get_key_length(hpr->cipher)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_EVP_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     if (!EVP_CipherInit_ex(hpr->cipher_ctx, hpr->cipher, NULL,
                            quic_hp_key, NULL, 1)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_EVP_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     hpr->libctx     = libctx;
@@ -59,9 +59,9 @@ int ossl_quic_hdr_protector_init(QUIC_HDR_PROTECTOR *hpr,
     hpr->cipher_id  = cipher_id;
     return 1;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     ossl_quic_hdr_protector_cleanup(hpr);
-    return 0;
+    return 0; /* LCOV_EXCL_BR_END */
 }
 
 void ossl_quic_hdr_protector_cleanup(QUIC_HDR_PROTECTOR *hpr)
@@ -870,7 +870,7 @@ int ossl_quic_calculate_retry_integrity_tag(OSSL_LIB_CTX *libctx,
         || client_initial_dcid == NULL || tag == NULL
         || client_initial_dcid->id_len > QUIC_MAX_CONN_ID_LEN) {
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_INVALID_ARGUMENT);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /*
@@ -884,7 +884,7 @@ int ossl_quic_calculate_retry_integrity_tag(OSSL_LIB_CTX *libctx,
     /* Assemble retry psuedo-packet. */
     if (!WPACKET_init_static_len(&wpkt, buf, sizeof(buf), 0)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_CRYPTO_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     wpkt_valid = 1;
@@ -894,61 +894,61 @@ int ossl_quic_calculate_retry_integrity_tag(OSSL_LIB_CTX *libctx,
         || !WPACKET_memcpy(&wpkt, client_initial_dcid->id,
                            client_initial_dcid->id_len)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_CRYPTO_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /* Encode main retry header. */
     if (!ossl_quic_wire_encode_pkt_hdr(&wpkt, hdr2.dst_conn_id.id_len,
                                        &hdr2, NULL))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if (!WPACKET_get_total_written(&wpkt, &hdr_enc_len)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_CRYPTO_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /* Create and initialise cipher context. */
     /* TODO(QUIC FUTURE): Cipher fetch caching. */
     if ((cipher = EVP_CIPHER_fetch(libctx, "AES-128-GCM", propq)) == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_EVP_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     if ((cctx = EVP_CIPHER_CTX_new()) == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_EVP_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     if (!EVP_CipherInit_ex(cctx, cipher, NULL,
                            retry_integrity_key, retry_integrity_nonce, /*enc=*/1)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_EVP_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /* Feed packet header as AAD data. */
     if (EVP_CipherUpdate(cctx, NULL, &l, buf, hdr_enc_len) != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_EVP_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /* Feed packet body as AAD data. */
     if (EVP_CipherUpdate(cctx, NULL, &l, hdr->data,
                          hdr->len - QUIC_RETRY_INTEGRITY_TAG_LEN) != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_EVP_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     /* Finalise and get tag. */
     if (EVP_CipherFinal_ex(cctx, NULL, &l2) != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_EVP_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     if (EVP_CIPHER_CTX_ctrl(cctx, EVP_CTRL_AEAD_GET_TAG,
                             QUIC_RETRY_INTEGRITY_TAG_LEN,
                             tag) != 1) {
         ERR_raise(ERR_LIB_SSL, ERR_R_EVP_LIB);
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
     }
 
     ok = 1;

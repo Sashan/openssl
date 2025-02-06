@@ -29,10 +29,10 @@ QUIC_SRT_GEN *ossl_quic_srt_gen_new(OSSL_LIB_CTX *libctx, const char *propq,
         return NULL;
 
     if ((srt_gen->mac = EVP_MAC_fetch(libctx, "HMAC", propq)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     if ((srt_gen->mac_ctx = EVP_MAC_CTX_new(srt_gen->mac)) == NULL)
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     *p++ = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST, "SHA256", 7);
     if (propq != NULL)
@@ -41,13 +41,13 @@ QUIC_SRT_GEN *ossl_quic_srt_gen_new(OSSL_LIB_CTX *libctx, const char *propq,
     *p++ = OSSL_PARAM_construct_end();
 
     if (!EVP_MAC_init(srt_gen->mac_ctx, key, key_len, params))
-        goto err;
+        goto err; /* LCOV_EXCL_BR_LINE */
 
     return srt_gen;
 
-err:
+err: /* LCOV_EXCL_BR_START */
     ossl_quic_srt_gen_free(srt_gen);
-    return NULL;
+    return NULL; /* LCOV_EXCL_BR_STOP */
 }
 
 void ossl_quic_srt_gen_free(QUIC_SRT_GEN *srt_gen)
