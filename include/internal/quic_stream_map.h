@@ -565,6 +565,7 @@ struct quic_stream_map_st {
     QUIC_RXFC               *max_streams_bidi_rxfc;
     QUIC_RXFC               *max_streams_uni_rxfc;
     int                     is_server;
+    unsigned int            have_totally_acked;
 };
 
 /*

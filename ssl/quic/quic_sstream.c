@@ -12,6 +12,11 @@
 #include "internal/common.h"
 #include "internal/ring_buf.h"
 
+#if 0
+#define	DPRINTF(...) (void)(0)
+#endif
+#define	DPRINTF	fprintf
+
 /*
  * ==================================================================
  * QUIC Send Stream
@@ -218,9 +223,12 @@ int ossl_quic_sstream_mark_lost(QUIC_SSTREAM *qss,
      * We lost a range of stream data bytes, so reinsert them into the new set,
      * so that they are returned once more by ossl_quic_sstream_get_stream_frame.
      */
-    if (!ossl_uint_set_insert(&qss->new_set, &r))
+    if (!ossl_uint_set_insert(&qss->new_set, &r)) {
+        DPRINTF(stderr, "%s %p error\n", __func__, qss);
         return 0;
+    }
 
+    DPRINTF(stderr, "%s %p <start:%llu, end:%llu> = %llu\n", __func__, qss, start, end, end - start);
     return 1;
 }
 
@@ -378,15 +386,22 @@ int ossl_quic_sstream_is_totally_acked(QUIC_SSTREAM *qss)
 {
     UINT_RANGE r;
     uint64_t cur_size;
+    int rv;
 
-    if (qss->have_final_size && !qss->acked_final_size)
+    if (qss->have_final_size && !qss->acked_final_size) {
+        DPRINTF(stderr, "%s %p ? no\n", __func__, qss);
         return 0;
+    }
 
-    if (ossl_quic_sstream_get_cur_size(qss) == 0)
+    if (ossl_quic_sstream_get_cur_size(qss) == 0) {
+        DPRINTF(stderr, "%s %p ? yes\n", __func__, qss);
         return 1;
+    }
 
-    if (ossl_list_uint_set_num(&qss->acked_set) != 1)
+    if (ossl_list_uint_set_num(&qss->acked_set) != 1) {
+        DPRINTF(stderr, "%s %p ? no\n", __func__, qss);
         return 0;
+    }
 
     r = ossl_list_uint_set_head(&qss->acked_set)->range;
     cur_size = qss->ring_buf.head_offset;
@@ -397,7 +412,9 @@ int ossl_quic_sstream_is_totally_acked(QUIC_SSTREAM *qss)
      * been acked.
      */
     assert(r.end + 1 <= cur_size);
-    return r.start == 0 && r.end + 1 == cur_size;
+    rv = (r.start == 0 && r.end + 1 == cur_size);
+    DPRINTF(stderr, "%s %p ? %s\n", __func__, qss, (rv == 0) ? "no" : "yws");
+    return rv;
 }
 
 void ossl_quic_sstream_adjust_iov(size_t len,

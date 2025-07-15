@@ -14,6 +14,11 @@
 
 DEFINE_LIST_OF(tx_history, OSSL_ACKM_TX_PKT);
 
+#define	DPRINTF(...) (void)(0)
+#if 0
+#define	DPRINTF	fprintf
+#endif
+
 /*
  * TX Packet History
  * *****************
@@ -924,6 +929,7 @@ static int ackm_set_loss_detection_timer(OSSL_ACKM *ackm)
 
     if (ackm_ack_eliciting_bytes_in_flight(ackm) == 0
             && ackm->peer_completed_addr_validation) {
+        DPRINTF(stderr, "%llx %s disabling probe %p\n", ackm->now(ackm->now_arg).t, __func__, ackm);
         /*
          * Nothing to detect lost, so no timer is set. However, the client
          * needs to arm the timer if the server might be blocked by the
@@ -934,6 +940,7 @@ static int ackm_set_loss_detection_timer(OSSL_ACKM *ackm)
     }
 
     timeout = ackm_get_pto_time_and_space(ackm, &space);
+    DPRINTF(stderr, "%llx %s scheduling probe %p %llx\n", ackm->now(ackm->now_arg).t, __func__, ackm, timeout.t);
     ackm_set_loss_detection_timer_actual(ackm, timeout);
     return 1;
 }
@@ -959,9 +966,12 @@ static void ackm_on_pkts_lost(OSSL_ACKM *ackm, int pkt_space,
 
         if (p->is_inflight) {
             ackm->bytes_in_flight -= p->num_bytes;
-            if (p->is_ack_eliciting)
+            if (p->is_ack_eliciting) {
                 ackm->ack_eliciting_bytes_in_flight[p->pkt_space]
                     -= p->num_bytes;
+                if (p->pkt_space == QUIC_PN_SPACE_HANDSHAKE)
+                    DPRINTF(stderr, "%llx %s %p lost:%zu in_flight:%llu\n", ackm->now(ackm->now_arg).t, __func__, ackm, p->num_bytes, ackm->ack_eliciting_bytes_in_flight[p->pkt_space]);
+            }
 
             if (p->pkt_num > largest_pn_lost)
                 largest_pn_lost = p->pkt_num;
@@ -1003,9 +1013,12 @@ static void ackm_on_pkts_acked(OSSL_ACKM *ackm, const OSSL_ACKM_TX_PKT *apkt)
     for (; apkt != NULL; apkt = anext) {
         if (apkt->is_inflight) {
             ackm->bytes_in_flight -= apkt->num_bytes;
-            if (apkt->is_ack_eliciting)
+            if (apkt->is_ack_eliciting) {
                 ackm->ack_eliciting_bytes_in_flight[apkt->pkt_space]
                     -= apkt->num_bytes;
+                if (apkt->pkt_space == QUIC_PN_SPACE_HANDSHAKE)
+                    DPRINTF(stderr, "%llx %s %p acked:%zu inflight:%llu\n", ackm->now(ackm->now_arg).t, __func__, ackm, apkt->num_bytes, ackm->ack_eliciting_bytes_in_flight[apkt->pkt_space]);
+            }
 
             if (apkt->pkt_num > last_pn_acked)
                 last_pn_acked = apkt->pkt_num;
@@ -1117,6 +1130,8 @@ int ossl_ackm_on_tx_packet(OSSL_ACKM *ackm, OSSL_ACKM_TX_PKT *pkt)
             ackm->time_of_last_ack_eliciting_pkt[pkt->pkt_space] = pkt->time;
             ackm->ack_eliciting_bytes_in_flight[pkt->pkt_space]
                 += pkt->num_bytes;
+            if (pkt->pkt_space == QUIC_PN_SPACE_HANDSHAKE)
+                DPRINTF(stderr, "%llx %s %p sent:%zu in_flight:%llu\n", ackm->now(ackm->now_arg).t, __func__, ackm, pkt->num_bytes, ackm->ack_eliciting_bytes_in_flight[pkt->pkt_space]);
         }
 
         ackm->bytes_in_flight += pkt->num_bytes;
@@ -1275,6 +1290,8 @@ int ossl_ackm_on_pkt_space_discarded(OSSL_ACKM *ackm, int pkt_space)
     ackm->pto_count = 0;
     ackm->discarded[pkt_space] = 1;
     ackm->ack_eliciting_bytes_in_flight[pkt_space] = 0;
+    if (pkt_space == QUIC_PN_SPACE_HANDSHAKE)
+        DPRINTF(stderr, "%llx %s %p %llu\n", ackm->now(ackm->now_arg).t, __func__, ackm, ackm->ack_eliciting_bytes_in_flight[pkt_space]);
     ackm_set_loss_detection_timer(ackm);
     return 1;
 }

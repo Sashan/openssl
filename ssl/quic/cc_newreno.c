@@ -4,6 +4,11 @@
 
 OSSL_SAFE_MATH_UNSIGNED(u64, uint64_t)
 
+#if 0
+#define	DPRINTF	fprintf
+#endif
+#define	DPRINTF(...) (void)(0)
+
 typedef struct ossl_cc_newreno_st {
     /* Dependencies. */
     OSSL_TIME   (*now_cb)(void *arg);
@@ -281,6 +286,7 @@ static void newreno_flush(OSSL_CC_NEWRENO *nr, uint32_t flags)
     }
 
     nr->processing_loss = 0;
+    DPRINTF(stderr, "%llx %s %p processing_loss:%d in_flight:%llu bytes_acked:%llu, last_loss:%llx cong_wnd:%llx\n", nr->now_cb(nr->now_cb_arg).t, __func__, nr, nr->processing_loss, nr->bytes_in_flight, nr->bytes_acked, nr->tx_time_of_last_loss.t, nr->cong_wnd);
     newreno_update_diag(nr);
 }
 
@@ -313,6 +319,7 @@ static int newreno_on_data_sent(OSSL_CC_DATA *cc, uint64_t num_bytes)
     OSSL_CC_NEWRENO *nr = (OSSL_CC_NEWRENO *)cc;
 
     nr->bytes_in_flight += num_bytes;
+    DPRINTF(stderr, "%llx %s %p processing_loss:%d in_flight:%llu bytes_acked:%llu, last_loss:%llx sent:%llx cong_wnd:%llx\n", nr->now_cb(nr->now_cb_arg).t, __func__, cc, nr->processing_loss, nr->bytes_in_flight, nr->bytes_acked, nr->tx_time_of_last_loss.t, num_bytes, nr->cong_wnd);
     newreno_update_diag(nr);
     return 1;
 }
@@ -395,6 +402,7 @@ static int newreno_on_data_acked(OSSL_CC_DATA *cc,
         nr->in_congestion_recovery = 0;
     }
 
+    DPRINTF(stderr, "%llx %s %p processing_loss:%d in_flight:%llu bytes_acked:%llu, last_loss:%llx sent:%zu cong_wnd:%llx\n", nr->now_cb(nr->now_cb_arg).t, __func__, cc, nr->processing_loss, nr->bytes_in_flight, nr->bytes_acked, nr->tx_time_of_last_loss.t, info->tx_size, nr->cong_wnd);
 out:
     newreno_update_diag(nr);
     return 1;
@@ -433,6 +441,8 @@ static int newreno_on_data_lost(OSSL_CC_DATA *cc,
         = ossl_time_max(nr->tx_time_of_last_loss, info->tx_time);
 
 out:
+    DPRINTF(stderr, "%llx %s %p processing_loss:%d in_flight:%llu bytes_acked:%llu, last_loss:%llx tx_szie:%zu cong_wnd:%llx\n", nr->now_cb(nr->now_cb_arg).t, __func__, cc, nr->processing_loss, nr->bytes_in_flight, nr->bytes_acked, nr->tx_time_of_last_loss.t, info->tx_size, nr->cong_wnd);
+
     newreno_update_diag(nr);
     return 1;
 }

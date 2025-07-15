@@ -11,6 +11,11 @@
 #include "internal/quic_wire.h"
 #include "internal/qlog_event_helpers.h"
 
+#define DPRINTF fprintf
+#if 0
+#define DPRINTF(...) (void)(0)
+#endif
+
 DEFINE_LIST_OF(tx_history, OSSL_ACKM_TX_PKT);
 
 int ossl_quic_fifd_init(QUIC_FIFD *fifd,
@@ -89,18 +94,25 @@ static void on_acked(void *arg)
         if (chunks[i].has_fin && chunks[i].stream_id != UINT64_MAX)
             ossl_quic_sstream_mark_acked_fin(sstream);
 
-        if (chunks[i].has_stop_sending && chunks[i].stream_id != UINT64_MAX)
+        if (chunks[i].has_stop_sending && chunks[i].stream_id != UINT64_MAX) {
+            /* here we call on_confirm_notify(txp) */
             fifd->confirm_frame(OSSL_QUIC_FRAME_TYPE_STOP_SENDING,
                                 chunks[i].stream_id, pkt,
                                 fifd->confirm_frame_arg);
+        }
 
-        if (chunks[i].has_reset_stream && chunks[i].stream_id != UINT64_MAX)
+        if (chunks[i].has_reset_stream && chunks[i].stream_id != UINT64_MAX) {
+            /* here we call on_confirm_notify(txp) */
             fifd->confirm_frame(OSSL_QUIC_FRAME_TYPE_RESET_STREAM,
                                 chunks[i].stream_id, pkt,
                                 fifd->confirm_frame_arg);
+        }
 
-        if (ossl_quic_sstream_is_totally_acked(sstream))
+        if (ossl_quic_sstream_is_totally_acked(sstream)) {
+            DPRINTF(stderr, "%s %p\n", __func__, sstream);
+            /* here we call calling on_sstream_updated(txp); */
             fifd->sstream_updated(chunks[i].stream_id, fifd->sstream_updated_arg);
+        }
     }
 
     /* GCR */

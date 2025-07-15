@@ -24,6 +24,11 @@
 #define MIN_FRAME_SIZE_MAX_STREAMS_BIDI 2
 #define MIN_FRAME_SIZE_MAX_STREAMS_UNI  2
 
+#define	DPRINTF(...) (void)(0)
+#if 0
+#define	DPRINTF	fprintf
+#endif
+
 /*
  * Packet Archetypes
  * =================
@@ -2880,9 +2885,14 @@ static int txp_generate_for_el(OSSL_QUIC_TX_PACKETISER *txp,
             done_pre_token = 1;
 
     /* CRYPTO Frames */
-    if (a.allow_crypto)
+    if (a.allow_crypto) {
         if (!txp_generate_crypto_frames(txp, pkt, &have_ack_eliciting))
             goto fatal_err;
+        if (enc_level == QUIC_ENC_LEVEL_HANDSHAKE)
+            DPRINTF(stderr, "%llx %s crypto frame sent for %p with %p\n", txp->args.now(txp->args.now_arg).t, __func__, txp, txp->args.crypto[pn_space]);
+    } else if (enc_level == QUIC_ENC_LEVEL_HANDSHAKE) {
+        DPRINTF(stderr, "%llx %s crypto not allowed for %p with %p\n", txp->args.now(txp->args.now_arg).t, __func__, txp, txp->args.crypto[pn_space]);
+    }
 
     /* Stream-specific frames */
     if (a.allow_stream_rel && txp->handshake_complete)

@@ -10,6 +10,10 @@
 #include "internal/quic_stream_map.h"
 #include "internal/nelem.h"
 
+#define DPRINTF fprintf
+#if 0
+#define DPRINTF(...) (void)(0)
+#endif
 /*
  * QUIC Stream Map
  * ===============
@@ -325,6 +329,23 @@ int ossl_quic_stream_map_is_local_allowed_by_stream_limit(QUIC_STREAM_MAP *qsm,
     return stream_ordinal < stream_limit;
 }
 
+static const char *get_sstream_state(unsigned int s)
+{
+    static const char *statetab[] = {
+        "QUIC_SSTREAM_STATE_NONE",
+        "QUIC_SSTREAM_STATE_READY",
+        "QUIC_SSTREAM_STATE_SEND",
+        "QUIC_SSTREAM_STATE_DATA_SENT",
+        "QUIC_SSTREAM_STATE_DATA_RECVD",
+        "QUIC_SSTREAM_STATE_RESET_SENT",
+        "QUIC_SSTREAM_STATE_RESET_RECVD"
+    };
+    if (s > QUIC_SSTREAM_STATE_RESET_RECVD)
+        return "???";
+    else
+        return statetab[s];
+}
+
 void ossl_quic_stream_map_update_state(QUIC_STREAM_MAP *qsm, QUIC_STREAM *s)
 {
     int should_be_active, allowed_by_stream_limit = 1;
@@ -340,12 +361,24 @@ void ossl_quic_stream_map_update_state(QUIC_STREAM_MAP *qsm, QUIC_STREAM *s)
     }
 
     if (s->send_state == QUIC_SSTREAM_STATE_DATA_SENT
-        && ossl_quic_sstream_is_totally_acked(s->sstream))
+        && ossl_quic_sstream_is_totally_acked(s->sstream)) {
+        DPRINTF(stderr, "%s %p %s %s [ %s ] %u\n", __func__, s->sstream,
+                (s->ready_for_gc) ? "gc-ready" : "gc-not-yet",
+                (s->shutdown_flush) ? "flushing" : "not flushing yet",
+                get_sstream_state(s->send_state),
+                __LINE__);
         ossl_quic_stream_map_notify_totally_acked(qsm, s);
+    }
     else if (s->shutdown_flush
              && s->send_state == QUIC_SSTREAM_STATE_SEND
-             && ossl_quic_sstream_is_totally_acked(s->sstream))
+             && ossl_quic_sstream_is_totally_acked(s->sstream)) {
+        DPRINTF(stderr, "%s %p %s %s [ %s ] %u\n", __func__, s->sstream,
+                (s->ready_for_gc) ? "gc-ready" : "gc-not-yet",
+                (s->shutdown_flush) ? "flushing" : "not flushing yet",
+                get_sstream_state(s->send_state),
+                __LINE__);
         shutdown_flush_done(qsm, s);
+    }
 
     if (!s->ready_for_gc) {
         s->ready_for_gc = qsm_ready_for_gc(qsm, s);
@@ -365,10 +398,17 @@ void ossl_quic_stream_map_update_state(QUIC_STREAM_MAP *qsm, QUIC_STREAM *s)
             || s->want_reset_stream
             || (!s->peer_stop_sending && stream_has_data_to_send(s)));
 
-    if (should_be_active)
+    if (should_be_active) {
+        DPRINTF(stderr, "%s %p should be active\n", __func__, s);
         stream_map_mark_active(qsm, s);
-    else
+    } else {
+        DPRINTF(stderr, "%s %p should be in-active\n", __func__, s);
+        /*
+         * We still might want to notify a connection/channel here
+         * so it can monitor progress of eventual shutdown operation.
+         */
         stream_map_mark_inactive(qsm, s);
+    }
 }
 
 /*
@@ -825,6 +865,7 @@ static int eligible_for_shutdown_flush(QUIC_STREAM *qs)
     case QUIC_SSTREAM_STATE_DATA_SENT:
         return !ossl_quic_sstream_is_totally_acked(qs->sstream);
     default:
+        DPRINTF(stderr, "%s fastrack for %p\n", __func__, qs);
         return 0;
     }
 }

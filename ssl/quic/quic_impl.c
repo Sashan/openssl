@@ -22,6 +22,11 @@
 #include "internal/quic_reactor_wait_ctx.h"
 #include "internal/time.h"
 
+#define DPRINTF fprintf
+#if 0
+#define DPRINTF(...) (void)(0)
+#endif
+
 typedef struct qctx_st QCTX;
 
 static void qc_cleanup(QUIC_CONNECTION *qc, int have_lock);
@@ -43,7 +48,7 @@ static void qc_set_default_xso_keep_ref(QUIC_CONNECTION *qc, QUIC_XSO *xso,
 static SSL *quic_conn_stream_new(QCTX *ctx, uint64_t flags, int need_lock);
 static int quic_validate_for_write(QUIC_XSO *xso, int *err);
 static int quic_mutation_allowed(QUIC_CONNECTION *qc, int req_active);
-static void qctx_maybe_autotick(QCTX *ctx);
+static int qctx_maybe_autotick(QCTX *ctx);
 static int qctx_should_autotick(QCTX *ctx);
 
 /*
@@ -1551,7 +1556,9 @@ int ossl_quic_conn_shutdown(SSL *s, uint64_t flags,
                     goto err;
                 }
             } else {
-                qctx_maybe_autotick(&ctx);
+		int did_tick;
+                did_tick = qctx_maybe_autotick(&ctx);
+		DPRINTF(stderr, "%s %p %s tick in phase 1\n", __func__, ctx.qc, (did_tick) ? "did" : "did not");
             }
         }
 
@@ -1570,7 +1577,9 @@ int ossl_quic_conn_shutdown(SSL *s, uint64_t flags,
                 goto err;
             }
         } else {
-            qctx_maybe_autotick(&ctx);
+	    int did_tick;
+            did_tick = qctx_maybe_autotick(&ctx);
+	    DPRINTF(stderr, "%s %p %s tick in phase 2\n", __func__, ctx.qc, (did_tick) ? "did" : "did not");
         }
 
         if (!ossl_quic_channel_is_term_any(ctx.qc->ch)) {
@@ -3684,12 +3693,13 @@ static int qctx_should_autotick(QCTX *ctx)
 }
 
 QUIC_NEEDS_LOCK
-static void qctx_maybe_autotick(QCTX *ctx)
+static int qctx_maybe_autotick(QCTX *ctx)
 {
     if (!qctx_should_autotick(ctx))
-        return;
+        return 0;
 
     ossl_quic_reactor_tick(ossl_quic_obj_get0_reactor(ctx->obj), 0);
+    return 1;
 }
 
 QUIC_TAKES_LOCK

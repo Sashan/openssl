@@ -142,6 +142,8 @@ int ossl_quic_reactor_tick(QUIC_REACTOR *rtor, uint32_t flags)
      * explicit error indicated to the user) because ticking is by its nature
      * best effort. If something fatal happens with a connection we can report
      * it on the next actual application I/O call.
+     *
+     * QUIC stack calls qeng_tick()
      */
     rtor->tick_cb(&res, rtor->tick_cb_arg, flags);
 
