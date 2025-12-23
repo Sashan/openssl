@@ -5729,3 +5729,5 @@ EVP_SIGNATURE_has_message_update        ?	4_0_0	EXIST::FUNCTION:
 EVP_MD_CTX_serialize                    ?	4_0_0	EXIST::FUNCTION:
 EVP_MD_CTX_deserialize                  ?	4_0_0	EXIST::FUNCTION:
 OSSL_ENCODER_CTX_ctrl_string            ?	4_0_0	EXIST::FUNCTION:
+CRYPTO_mpool_start                      ?	4_0_0	EXIST::FUNCTION:
+CRYPTO_mpool_stop                       ?	4_0_0	EXIST::FUNCTION:

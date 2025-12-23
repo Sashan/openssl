@@ -591,6 +591,9 @@ void OSSL_sleep(uint64_t millis);
 
 void *OSSL_LIB_CTX_get_data(OSSL_LIB_CTX *ctx, int index);
 
+void CRYPTO_mpool_start(void);
+void CRYPTO_mpool_stop(void);
+
 #ifdef __cplusplus
 }
 #endif

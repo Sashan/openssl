@@ -10,6 +10,8 @@
 #include "internal/e_os.h"
 #include "internal/cryptlib.h"
 #include "internal/mem_alloc_utils.h"
+#include "internal/threads_common.h"
+#include "internal/list.h"
 #include "crypto/cryptlib.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +25,36 @@ static int allow_customize = 1;
 static CRYPTO_malloc_fn malloc_impl = CRYPTO_malloc;
 static CRYPTO_realloc_fn realloc_impl = CRYPTO_realloc;
 static CRYPTO_free_fn free_impl = CRYPTO_free;
+
+typedef struct crypto_mchunk {
+    char *mc_bytes;
+    char *mc_next;
+    char *mc_last;
+    OSSL_LIST_MEMBER(mc, struct crypto_mchunk);
+} CRYPTO_MCHUNK;
+
+/* 64k - mchunk structure */
+#define CRYPTO_MCHUNK_DEFAULT_SZ	(65535 - sizeof(CRYPTO_MCHUNK))
+
+DEFINE_LIST_OF(mc, CRYPTO_MCHUNK);
+
+typedef struct crypto_mpool {
+    CRYPTO_MCHUNK *mp_curr_mc;
+    OSSL_LIST(mc) mp_chunks;
+} CRYPTO_MPOOL;
+
+#define CRYPTO_MPHDR_COOKIE 0xc0deface
+#define CRYPTO_MPROOT_COOKIE 0xfacec0de
+
+typedef struct crypto_mpoolhdr {
+    uint32_t mph_cookie;
+    uint32_t mph_len;
+} CRYPTO_MPOOLHDR;
+
+typedef struct crypto_mpoolroot {
+    CRYPTO_MPOOL *mpr_mp;
+    CRYPTO_MPOOLHDR mpr_mph;
+} CRYPTO_MPOOLROOT;
 
 #if !defined(OPENSSL_NO_CRYPTO_MDEBUG) && !defined(FIPS_MODULE)
 #include "internal/tsan_assist.h"
@@ -49,8 +81,8 @@ static void parseit(void);
 static int shouldfail(void);
 
 #define FAILTEST()    \
-    if (shouldfail()) \
-    return NULL
+if (shouldfail()) \
+return NULL
 
 #else
 
@@ -59,30 +91,30 @@ static int shouldfail(void);
 #endif
 
 int CRYPTO_set_mem_functions(CRYPTO_malloc_fn malloc_fn,
-    CRYPTO_realloc_fn realloc_fn,
-    CRYPTO_free_fn free_fn)
+CRYPTO_realloc_fn realloc_fn,
+CRYPTO_free_fn free_fn)
 {
-    if (!allow_customize)
-        return 0;
-    if (malloc_fn != NULL)
-        malloc_impl = malloc_fn;
-    if (realloc_fn != NULL)
-        realloc_impl = realloc_fn;
-    if (free_fn != NULL)
-        free_impl = free_fn;
-    return 1;
+if (!allow_customize)
+    return 0;
+if (malloc_fn != NULL)
+    malloc_impl = malloc_fn;
+if (realloc_fn != NULL)
+    realloc_impl = realloc_fn;
+if (free_fn != NULL)
+    free_impl = free_fn;
+return 1;
 }
 
 void CRYPTO_get_mem_functions(CRYPTO_malloc_fn *malloc_fn,
-    CRYPTO_realloc_fn *realloc_fn,
-    CRYPTO_free_fn *free_fn)
+CRYPTO_realloc_fn *realloc_fn,
+CRYPTO_free_fn *free_fn)
 {
-    if (malloc_fn != NULL)
-        *malloc_fn = malloc_impl;
-    if (realloc_fn != NULL)
-        *realloc_fn = realloc_impl;
-    if (free_fn != NULL)
-        *free_fn = free_impl;
+if (malloc_fn != NULL)
+    *malloc_fn = malloc_impl;
+if (realloc_fn != NULL)
+    *realloc_fn = realloc_impl;
+if (free_fn != NULL)
+    *free_fn = free_impl;
 }
 
 #if !defined(OPENSSL_NO_CRYPTO_MDEBUG) && !defined(FIPS_MODULE)
@@ -186,10 +218,12 @@ void ossl_malloc_setup_failures(void)
 }
 #endif
 
-void *CRYPTO_malloc(size_t num, const char *file, int line)
+static void *ossl_malloc(size_t num, const char *file, int line)
 {
     void *ptr;
 
+    if (ossl_unlikely(num == 0))
+        return NULL;
     INCREMENT(malloc_count);
     if (malloc_impl != CRYPTO_malloc) {
         ptr = malloc_impl(num, file, line);
@@ -211,12 +245,166 @@ void *CRYPTO_malloc(size_t num, const char *file, int line)
         allow_customize = 0;
     }
 
-    ptr = malloc(num);
-    if (ossl_likely(ptr != NULL))
-        return ptr;
+    ptr = malloc(num + sizeof(CRYPTO_MPOOLHDR));
+    if (ossl_likely(ptr != NULL)) {
+        CRYPTO_MPOOLHDR *mph = (CRYPTO_MPOOLHDR *)ptr;
+        mph->mph_cookie = 0;
+        mph->mph_len = 0;
+        return ptr + sizeof(CRYPTO_MPOOLHDR);
+    }
+
 err:
     ossl_report_alloc_err(file, line);
     return NULL;
+}
+
+static void ossl_free(void *str, const char *file, int line)
+{
+    INCREMENT(free_count);
+    if (free_impl != CRYPTO_free) {
+        free_impl(str, file, line);
+        return;
+    }
+
+    free(str);
+}
+
+static void *ossl_mpool_create_mc(size_t chunk_sz, const char *file, int line)
+{
+    CRYPTO_MCHUNK *mc;
+
+    mc = ossl_malloc(chunk_sz, file, line);
+    if (mc != NULL) {
+        mc->mc_bytes = (char *)mc + sizeof(CRYPTO_MCHUNK);
+        mc->mc_next = mc->mc_bytes;
+        mc->mc_last = (char *)mc + chunk_sz;
+        ossl_list_mc_init_elem(mc);
+    }
+
+    return mc;
+}
+
+static int ossl_mpool_chksize(CRYPTO_MCHUNK *mc, size_t want)
+{
+    return (mc->mc_next + want) < mc->mc_last;
+}
+
+static void *ossl_mpool_alloc(CRYPTO_MPOOL *mp, size_t num, const char *file, int line)
+{
+    CRYPTO_MCHUNK *curr_mc;
+    CRYPTO_MPOOLHDR *mph = NULL;
+    CRYPTO_MPOOLROOT *mpr = NULL;
+    void *rv;
+
+    curr_mc = mp->mp_curr_mc;
+    /*
+     * no chunk or want too much memory, then create new chunk
+     * and allocate bytes from there. This may waste too much
+     * memory. Better alternative is to walk existing chunks
+     * and try to find  chunk with enough space to satisfy
+     * allocation.
+     */
+    if (curr_mc == NULL || !ossl_mpool_chksize(curr_mc, num + sizeof(CRYPTO_MPOOLHDR))) {
+        /* need to allocate extra bytes for root header */
+        num += sizeof(CRYPTO_MPOOLROOT);
+        /*
+         * if allocation does not fit default chunk size, the extra allocation must also allocate
+         * chunk metadata too.
+         */
+        num = (num < CRYPTO_MCHUNK_DEFAULT_SZ) ? CRYPTO_MCHUNK_DEFAULT_SZ : num + sizeof(CRYPTO_MCHUNK);
+        curr_mc = ossl_mpool_create_mc(CRYPTO_MCHUNK_DEFAULT_SZ, file, line);
+        if (curr_mc != NULL) {
+            ossl_list_mc_insert_tail(&mp->mp_chunks, curr_mc);
+            mp->mp_curr_mc = curr_mc;
+            mpr = (CRYPTO_MPOOLROOT *)curr_mc->mc_next;
+            curr_mc->mc_next += num;
+        }
+    } else {
+        /* need to allocate extra bytes for pool buf header */
+        num += sizeof(CRYPTO_MPOOLHDR);
+        mph = (CRYPTO_MPOOLHDR *)curr_mc->mc_next;
+        curr_mc->mc_next += num;
+    }
+
+    if (mpr != NULL) {
+        mpr->mpr_mp = mp;
+        mpr->mpr_mph.mph_cookie = CRYPTO_MPROOT_COOKIE;
+        mpr->mpr_mph.mph_len = num; /* including header */
+        rv = &mpr[1]; /* return next bytes which follow header */
+    } else if (mph != NULL) {
+        mph->mph_cookie = CRYPTO_MPHDR_COOKIE;
+        mph->mph_len = num; /* including header */
+        rv = &mph[1]; /* return next bytes which follow header */
+    } else {
+        rv = NULL;
+    }
+
+    return rv;
+}
+
+/*
+ * no realloc provided by pool, fallback to libc malloc
+ */
+static void *ossl_mpool_realloc(void *str, size_t num, const char *file, int line)
+{
+    CRYPTO_MPOOLHDR *mph = (CRYPTO_MPOOLHDR *)str;
+    CRYPTO_MPOOLROOT *mpr = (CRYPTO_MPOOLROOT *)str;
+    char *new_buf;
+
+    mph--;
+    if (mph->mph_cookie == CRYPTO_MPHDR_COOKIE) {
+        new_buf = ossl_malloc(num + mph->mph_len, file, line);
+        if (new_buf == NULL)
+            return NULL;
+
+        memcpy(new_buf, mph, mph->mph_len);
+        /*
+         * mph will be freed with pool. Reallocated buffer is no longer
+         * part of memory pool.
+         */
+        mph = (CRYPTO_MPOOLHDR *)new_buf;
+        mph->mph_cookie = 0;
+        mph->mph_len = 0;
+    } else {
+        /*
+         * This is bad we can not reallocate root buffer. Trying to
+         * reallocate root buffer will cause a memory leak of whole
+         * pool. The only solution is to drop CRYPTO_MPOOLHDR and
+         * always use CRYPTO_MPOOLROOT instead where we keep pointer
+         * to memory pool.
+         *
+         * just fail the allocation.
+         */
+        OPENSSL_assert(mpr != NULL);
+        return NULL;
+    }
+
+    return new_buf;
+}
+
+static void ossl_mpool_destroy(CRYPTO_MPOOL *mp)
+{
+    CRYPTO_MCHUNK *mc;
+
+    while ((mc = ossl_list_mc_head(&mp->mp_chunks)) != NULL) {
+        ossl_list_mc_remove(&mp->mp_chunks, mc);
+        ossl_free(mc, __FILE__, __LINE__);
+    }
+
+    ossl_free(mp, __FILE__, __LINE__);
+}
+
+void *CRYPTO_malloc(size_t num, const char *file, int line)
+{
+    CRYPTO_MPOOL *mp;
+
+    mp = CRYPTO_THREAD_get_local_ex(CRYPTO_THREAD_LOCAL_MPOOL, CRYPTO_THREAD_NO_CONTEXT);
+    if (mp != NULL) {
+        return ossl_mpool_alloc(mp, num, file, line);
+    }
+
+    return ossl_malloc(num, file, line);
+
 }
 
 void *CRYPTO_zalloc(size_t num, const char *file, int line)
@@ -264,6 +452,18 @@ void *CRYPTO_aligned_alloc(size_t num, size_t alignment, void **freeptr,
 void *CRYPTO_realloc(void *str, size_t num, const char *file, int line)
 {
     void *ret;
+    CRYPTO_MPOOLHDR *mph;
+
+    /*
+     * if memory to be reallocated comes from memory pool then do the
+     * reallocation pool-way.
+     */
+    mph = (CRYPTO_MPOOLHDR *)str;
+    if (mph != NULL) {
+        mph--;
+        if (mph->mph_cookie == CRYPTO_MPHDR_COOKIE || mph->mph_cookie == CRYPTO_MPHDR_COOKIE)
+            return ossl_mpool_realloc(str, num, file, line);
+    }
 
     INCREMENT(realloc_count);
     if (realloc_impl != CRYPTO_realloc) {
@@ -284,6 +484,7 @@ void *CRYPTO_realloc(void *str, size_t num, const char *file, int line)
     }
 
     FAILTEST();
+
     ret = realloc(str, num);
 
 err:
@@ -322,13 +523,30 @@ void *CRYPTO_clear_realloc(void *str, size_t old_len, size_t num,
 
 void CRYPTO_free(void *str, const char *file, int line)
 {
-    INCREMENT(free_count);
-    if (free_impl != CRYPTO_free) {
-        free_impl(str, file, line);
-        return;
+    CRYPTO_MPOOLHDR *mph;
+    CRYPTO_MPOOLROOT *mpr;
+
+    if (str != NULL) {
+        /*
+         * Is safe if all allocations are done with CRYPTO_malloc(),
+         * where mpool header is preprended to every allocation.
+         */
+        mph = (CRYPTO_MPOOLHDR *)str;
+	mph--;
+        switch (mph->mph_cookie) {
+        case CRYPTO_MPROOT_COOKIE:
+            mph--;
+            mpr = (CRYPTO_MPOOLROOT *)mph;
+            ossl_mpool_destroy(mpr->mpr_mp);
+            /* FALLTHRU */
+        case CRYPTO_MPHDR_COOKIE:
+            return; /* no-op, pool must be dropped at root */
+        default:
+            str = mph; /* discard pool header */
+        }
     }
 
-    free(str);
+    ossl_free(str, file, line);
 }
 
 void CRYPTO_clear_free(void *str, size_t num, const char *file, int line)
@@ -421,5 +639,38 @@ int CRYPTO_mem_leaks_cb(int (*cb)(const char *str, size_t len, void *u),
 }
 
 #endif
+
+void CRYPTO_mpool_start(void)
+{
+    CRYPTO_MPOOL *mp;
+    CRYPTO_MPOOL *old_mp;
+
+    old_mp = CRYPTO_THREAD_get_local_ex(CRYPTO_THREAD_LOCAL_MPOOL, CRYPTO_THREAD_NO_CONTEXT);
+    if (old_mp != NULL && ossl_list_mc_num(&old_mp->mp_chunks) == 0) {{
+        /*
+         * No memory was allocated from existing pool, just use it.
+         */
+        return;
+    }
+
+    mp = ossl_malloc(sizeof(CRYPTO_MPOOL), __FILE__, __LINE__);
+    mp->mp_curr_mc = NULL;
+    mp->mp_allocs = 0;
+    ossl_list_mc_init(&mp->mp_chunks);
+    /*
+     * just overwrite existing pool (old_mp) with new pool. The pool is destroyed
+     * when application releases the 'root' object from pool.
+     */
+    CRYPTO_THREAD_set_local_ex(CRYPTO_THREAD_LOCAL_MPOOL, CRYPTO_THREAD_NO_CONTEXT, mp);
+}
+
+void CRYPTO_mpool_stop(void)
+{
+    /*
+     * Remember pool is rleased with its 'root' object. Here we just tell library
+     * to stop allocating from pool.
+     */
+    CRYPTO_THREAD_set_local_ex(CRYPTO_THREAD_LOCAL_MPOOL, CRYPTO_THREAD_NO_CONTEXT, NULL);
+}
 
 #endif
