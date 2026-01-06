@@ -184,20 +184,6 @@ extern "C" {
 #define OPENSSL_EXTERN extern
 #endif
 
-#ifdef _WIN32
-#ifdef _WIN64
-typedef __int64 ossl_ssize_t;
-#define OSSL_SSIZE_MAX _I64_MAX
-#else
-typedef int ossl_ssize_t;
-#define OSSL_SSIZE_MAX INT_MAX
-#endif
-#endif
-
-#if defined(OPENSSL_SYS_UEFI) && !defined(ossl_ssize_t)
-typedef INTN ossl_ssize_t;
-#define OSSL_SSIZE_MAX MAX_INTN
-#endif
 
 #ifndef OSSL_SSIZE_MAX
 #include <sys/types.h>
@@ -218,8 +204,6 @@ typedef ssize_t ossl_ssize_t;
 #endif
 
 /* Standard integer types */
-#define OPENSSL_NO_INTTYPES_H
-#define OPENSSL_NO_STDINT_H
 #if defined(OPENSSL_SYS_UEFI)
 typedef INT8 int8_t;
 typedef UINT8 uint8_t;
@@ -230,39 +214,20 @@ typedef UINT32 uint32_t;
 typedef INT64 int64_t;
 typedef UINT64 uint64_t;
 typedef UINTN uintptr_t;
-#elif (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L) || defined(__osf__) || defined(__sgi) || defined(__hpux) || defined(OPENSSL_SYS_VMS) || defined(__OpenBSD__)
-#include <inttypes.h>
-#undef OPENSSL_NO_INTTYPES_H
-/* Because the specs say that inttypes.h includes stdint.h if present */
-#undef OPENSSL_NO_STDINT_H
-#elif defined(_MSC_VER) && _MSC_VER < 1600
-/*
- * minimally required typdefs for systems not supporting inttypes.h or
- * stdint.h: currently just older VC++
- */
-typedef signed char int8_t;
-typedef unsigned char uint8_t;
-typedef short int16_t;
-typedef unsigned short uint16_t;
-typedef int int32_t;
-typedef unsigned int uint32_t;
-typedef __int64 int64_t;
-typedef unsigned __int64 uint64_t;
+#if !defined(ossl_ssize_t)
+typedef INTN ossl_ssize_t;
+#define OSSL_SSIZE_MAX MAX_INTN
+#endif
+
 #elif defined(OPENSSL_SYS_TANDEM)
 #include <stdint.h>
 #include <sys/types.h>
 #else
 #include <stdint.h>
-#undef OPENSSL_NO_STDINT_H
-#endif
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L && defined(INTMAX_MAX) && defined(UINTMAX_MAX)
-typedef intmax_t ossl_intmax_t;
-typedef uintmax_t ossl_uintmax_t;
-#else
+
 /* Fall back to the largest we know we require and can handle */
 typedef int64_t ossl_intmax_t;
 typedef uint64_t ossl_uintmax_t;
-#endif
 
 /* ossl_inline: portable inline definition usable in public headers */
 #if !defined(inline) && !defined(__cplusplus)
