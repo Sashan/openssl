@@ -2511,14 +2511,13 @@ int SSL_read_early_data(SSL *s, void *buf, size_t num, size_t *readbytes)
     int ret;
     SSL_CONNECTION *sc = SSL_CONNECTION_FROM_SSL_ONLY(s);
 
-    /* TODO(QUIC 0RTT): 0-RTT support */
     if (sc == NULL) {
         ERR_raise(ERR_LIB_SSL, ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED);
         return SSL_READ_EARLY_DATA_ERROR;
     }
 
-    if (ssl_reset_error_state(sc) == 0)
-        return 0;
+    if (IS_QUIC(s))
+        return ossl_quic_read_early_data(s, buf, num, readbytes);
 
     if (!sc->server) {
         ERR_raise(ERR_LIB_SSL, ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED);
@@ -2576,9 +2575,11 @@ int SSL_get_early_data_status(const SSL *s)
 {
     const SSL_CONNECTION *sc = SSL_CONNECTION_FROM_CONST_SSL_ONLY(s);
 
-    /* TODO(QUIC 0RTT): 0-RTT support */
     if (sc == NULL)
         return 0;
+
+    if (IS_QUIC(s))
+        return ossl_quic_get_early_data_status(s);
 
     return sc->ext.early_data;
 }
@@ -2861,7 +2862,9 @@ int SSL_write_early_data(SSL *s, const void *buf, size_t num, size_t *written)
     uint32_t partialwrite;
     SSL_CONNECTION *sc = SSL_CONNECTION_FROM_SSL_ONLY(s);
 
-    /* TODO(QUIC 0RTT): This will need special handling for QUIC */
+    if (IS_QUIC(s))
+        return ossl_quic_write_early_data(s, buf, num, written);
+
     if (sc == NULL)
         return 0;
 
@@ -6324,6 +6327,9 @@ int SSL_session_reused(const SSL *s)
     if (sc == NULL)
         return 0;
 
+    if (IS_QUIC(s))
+        ossl_quic_session_reused(s);
+
     return sc->hit;
 }
 
@@ -7405,6 +7411,9 @@ int SSL_set_max_early_data(SSL *s, uint32_t max_early_data)
     if (sc == NULL)
         return 0;
 
+    if (IS_QUIC(s))
+        return ossl_quic_set_max_early_data(s, max_early_data);
+
     sc->max_early_data = max_early_data;
 
     return 1;
@@ -7416,6 +7425,9 @@ uint32_t SSL_get_max_early_data(const SSL *s)
 
     if (sc == NULL)
         return 0;
+
+    if (IS_QUIC(s))
+        return ossl_quic_get_max_early_data(s);
 
     return sc->max_early_data;
 }
@@ -7439,6 +7451,9 @@ int SSL_set_recv_max_early_data(SSL *s, uint32_t recv_max_early_data)
     if (sc == NULL)
         return 0;
 
+    if (IS_QUIC(s))
+        return ossl_quic_set_recv_max_early_data(s, recv_max_early_data);
+
     sc->recv_max_early_data = recv_max_early_data;
 
     return 1;
@@ -7450,6 +7465,9 @@ uint32_t SSL_get_recv_max_early_data(const SSL *s)
 
     if (sc == NULL)
         return 0;
+
+    if (IS_QUIC(s))
+        return ossl_quic_get_recv_max_early_data(s);
 
     return sc->recv_max_early_data;
 }

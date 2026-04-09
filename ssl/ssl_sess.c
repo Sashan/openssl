@@ -21,6 +21,7 @@
 #include "statem/statem_local.h"
 #ifndef OPENSSL_NO_QUIC
 #include "internal/quic_types.h"
+#include "internal/quic_ssl.h"
 #endif
 
 static void SSL_SESSION_list_remove(SSL_CTX *ctx, SSL_SESSION *s);
@@ -69,6 +70,9 @@ SSL_SESSION *SSL_get_session(const SSL *ssl)
     if (sc == NULL)
         return NULL;
 
+    if (IS_QUIC(ssl))
+        return ossl_quic_get_session(ssl);
+
     return sc->session;
 }
 
@@ -76,6 +80,9 @@ SSL_SESSION *SSL_get1_session(SSL *ssl)
 /* variant of SSL_get_session: caller really gets something */
 {
     SSL_SESSION *sess;
+
+    if (IS_QUIC(ssl))
+        return ossl_quic_get1_session(ssl);
 
     /*
      * Need to lock this all up rather than just use CRYPTO_add so that
@@ -919,6 +926,9 @@ int SSL_set_session(SSL *s, SSL_SESSION *session)
 
     if (sc == NULL)
         return 0;
+
+    if (IS_QUIC(s))
+        return ossl_quic_set_session(s, session);
 
     if (session != NULL && !SSL_SESSION_up_ref(session))
         return 0;

@@ -435,6 +435,7 @@ void ossl_quic_channel_bind_qrx(QUIC_CHANNEL *tserver_ch, OSSL_QRX *qrx)
 QUIC_CHANNEL *ossl_quic_channel_alloc(const QUIC_CHANNEL_ARGS *args)
 {
     QUIC_CHANNEL *ch = NULL;
+    SSL_SESSION *session;
 
     if ((ch = OPENSSL_zalloc(sizeof(*ch))) == NULL)
         return NULL;
@@ -457,24 +458,49 @@ QUIC_CHANNEL *ossl_quic_channel_alloc(const QUIC_CHANNEL_ARGS *args)
     }
 #endif
 
-    ch->max_idle_timeout_local_req = args->max_idle_timeout;
-    ch->tx_max_udp_payload_size = args->max_udp_payload_size;
-    ch->tx_init_max_data = args->init_max_data;
-    ch->tx_init_max_stream_data_bidi_local = args->init_max_stream_data_bidi_local;
-    ch->tx_init_max_stream_data_bidi_remote = args->init_max_stream_data_bidi_remote;
-    ch->tx_init_max_stream_data_uni = args->init_max_stream_data_uni;
-    ch->tx_init_max_streams_bidi = args->init_max_streams_bidi;
-    ch->tx_init_max_streams_uni = args->init_max_streams_uni;
-    ch->tx_ack_delay_exp = args->ack_delay_exponent;
-    ch->tx_max_ack_delay = args->max_ack_delay;
-    ch->tx_disable_active_migration = args->disable_active_migration;
-    ch->tx_active_conn_id_limit = args->active_conn_id_limit;
+    if (ch->tls != NULL)
+        session = SSL_CONNECTION_FROM_SSL(ch->tls)->session;
+    else
+        session = NULL;
+
+    if (session == NULL) {
+        ch->max_idle_timeout_local_req = args->max_idle_timeout;
+        ch->tx_max_udp_payload_size = args->max_udp_payload_size;
+        ch->tx_init_max_data = args->init_max_data;
+        ch->tx_init_max_stream_data_bidi_local = args->init_max_stream_data_bidi_local;
+        ch->tx_init_max_stream_data_bidi_remote = args->init_max_stream_data_bidi_remote;
+        ch->tx_init_max_stream_data_uni = args->init_max_stream_data_uni;
+        ch->tx_init_max_streams_bidi = args->init_max_streams_bidi;
+        ch->tx_init_max_streams_uni = args->init_max_streams_uni;
+        ch->tx_ack_delay_exp = args->ack_delay_exponent;
+        ch->tx_max_ack_delay = args->max_ack_delay;
+        ch->tx_disable_active_migration = args->disable_active_migration;
+        ch->tx_active_conn_id_limit = args->active_conn_id_limit;
+    } else {
+        ch->tx_init_max_stream_data_bidi_local = session->quic_params.init_max_stream_data_bidi_local;
+        ch->tx_init_max_stream_data_bidi_remote = session->quic_params.init_max_stream_data_bidi_remote;
+        ch->tx_init_max_stream_data_uni = session->quic_params.init_max_stream_data_uni;
+        ch->rx_max_udp_payload_size = session->quic_params.max_udp_payload_size;
+        ch->tx_init_max_data = session->quic_params.init_max_data;
+        ch->max_idle_timeout_local_req = /* sent in transport params */
+            session->quic_params.max_idle_timeout;
+        ch->max_idle_timeout = /* negotiated value */
+            session->quic_params.max_idle_timeout;
+        ch->rx_active_conn_id_limit = session->quic_params.active_conn_id_limit;
+        ch->max_local_streams_bidi = session->quic_params.max_local_streams_bidi;
+        ch->max_local_streams_uni = session->quic_params.max_local_streams_uni;
+    }
 
     if (!ossl_quic_rxfc_init(&ch->conn_rxfc, NULL,
             ch->tx_init_max_data,
             DEFAULT_CONN_RXFC_MAX_WND_MUL * ch->tx_init_max_data,
-            get_time, ch))
+            get_time, ch)) {
+#ifndef OPENSSL_NO_QLOG
+        OPENSSL_free(ch->qlog_title);
+#endif
+        OPENSSL_free(ch);
         return NULL;
+    }
 
     return ch;
 }

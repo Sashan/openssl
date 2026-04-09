@@ -5976,3 +5976,130 @@ int ossl_quic_set_diag_title(SSL_CTX *ctx, const char *title)
 
     return 1;
 }
+
+int ossl_quic_read_early_data(SSL *s, void *buf, size_t num, size_t *readbytes)
+{
+    return 0;
+}
+
+int ossl_quic_write_early_data(SSL *s, const void *buf, size_t num, size_t *written)
+{
+    return 0;
+}
+
+int ossl_quic_get_early_data_status(const SSL *s)
+{
+    return 0;
+}
+
+int ossl_quic_set_max_early_data(SSL *ssl, uint32_t max_early_data)
+{
+    return 0;
+}
+
+uint32_t ossl_quic_get_max_early_data(SSL *ssl)
+{
+    return 0;
+}
+
+int ossl_quic_set_recv_max_early_data(SSL *ssl, uint32_t recv_max_early_data)
+{
+    return 0;
+}
+
+uint32_t ossl_quic_get_recv_max_early_data(SSL *ssl)
+{
+    return 0;
+}
+
+SSL_SESSION *ossl_quic_get_session(const SSL *s)
+{
+    QCTX qctx;
+    SSL_SESSION *session = NULL;
+    SSL_CONNECTION *sc;
+
+    if (!expect_quic_c(s, &qctx))
+        return NULL;
+
+    qctx_lock(&qctx);
+
+    if (qctx.qc->tls == NULL)
+        goto unlock;
+
+    sc = SSL_CONNECTION_FROM_SSL(qctx.qc->tls);
+    session = sc->session;
+
+unlock:
+    qctx_unlock(&qctx);
+
+    return session;
+}
+
+SSL_SESSION *ossl_quic_get1_session(const SSL *s)
+{
+    QCTX qctx;
+    SSL_SESSION *session = NULL;
+    SSL_CONNECTION *sc;
+
+    if (!expect_quic_c(s, &qctx))
+        return NULL;
+
+    qctx_lock(&qctx);
+
+    if (qctx.qc->tls == NULL)
+        goto unlock;
+
+    sc = SSL_CONNECTION_FROM_SSL(qctx.qc->tls);
+    session = sc->session;
+    if (session == NULL || SSL_SESSION_up_ref(session) == 0)
+        session = NULL;
+
+unlock:
+    qctx_unlock(&qctx);
+
+    return session;
+}
+
+int ossl_quic_set_session(SSL *s, SSL_SESSION *session)
+{
+    QCTX qctx;
+    int rv = 0;
+
+    if (!expect_quic_c(s, &qctx))
+        return 0;
+
+    qctx_lock(&qctx);
+
+    if (qctx.qc->tls == NULL)
+        goto unlock;
+
+    rv = SSL_set_session(qctx.qc->tls, session);
+
+unlock:
+    qctx_unlock(&qctx);
+
+    return rv;
+}
+
+int ossl_quic_session_reused(const SSL *s)
+{
+    QCTX qctx;
+    int rv = 0;
+    SSL_CONNECTION *sc;
+
+    if (!expect_quic_c(s, &qctx))
+        return 0;
+
+    qctx_lock(&qctx);
+
+    if (qctx.qc->tls == NULL)
+        goto unlock;
+
+    sc = SSL_CONNECTION_FROM_SSL(qctx.qc->tls);
+    rv = sc->hit;
+
+unlock:
+    qctx_unlock(&qctx);
+
+    return rv;
+}
