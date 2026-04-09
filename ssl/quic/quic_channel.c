@@ -478,7 +478,7 @@ QUIC_CHANNEL *ossl_quic_channel_alloc(const QUIC_CHANNEL_ARGS *args)
         OPENSSL_free(ch->qlog_title);
 #endif
         OPENSSL_free(ch);
-        return NULL;
+        ch = NULL;
     }
 
     return ch;
