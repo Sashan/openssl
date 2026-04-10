@@ -437,7 +437,7 @@ QUIC_CHANNEL *ossl_quic_channel_alloc(const QUIC_CHANNEL_ARGS *args)
     QUIC_CHANNEL *ch;
 
     if ((ch = OPENSSL_zalloc(sizeof(*ch))) == NULL)
-        goto err;
+        return NULL;
 
     ch->port = args->port;
     ch->is_server = args->is_server;
