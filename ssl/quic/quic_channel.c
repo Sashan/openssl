@@ -434,7 +434,7 @@ void ossl_quic_channel_bind_qrx(QUIC_CHANNEL *tserver_ch, OSSL_QRX *qrx)
 
 QUIC_CHANNEL *ossl_quic_channel_alloc(const QUIC_CHANNEL_ARGS *args)
 {
-    QUIC_CHANNEL *ch = NULL;
+    QUIC_CHANNEL *ch;
     SSL_SESSION *session;
 
     if ((ch = OPENSSL_zalloc(sizeof(*ch))) == NULL)
@@ -451,10 +451,8 @@ QUIC_CHANNEL *ossl_quic_channel_alloc(const QUIC_CHANNEL_ARGS *args)
     ch->use_qlog = args->use_qlog;
 
     if (ch->use_qlog && args->qlog_title != NULL) {
-        if ((ch->qlog_title = OPENSSL_strdup(args->qlog_title)) == NULL) {
-            OPENSSL_free(ch);
-            return NULL;
-        }
+        if ((ch->qlog_title = OPENSSL_strdup(args->qlog_title)) == NULL)
+            goto err;
     }
 #endif
 
@@ -495,14 +493,17 @@ QUIC_CHANNEL *ossl_quic_channel_alloc(const QUIC_CHANNEL_ARGS *args)
             ch->tx_init_max_data,
             DEFAULT_CONN_RXFC_MAX_WND_MUL * ch->tx_init_max_data,
             get_time, ch)) {
+        goto err;
+    }
+
+    return ch;
+
+err:
 #ifndef OPENSSL_NO_QLOG
         OPENSSL_free(ch->qlog_title);
 #endif
         OPENSSL_free(ch);
-        return NULL;
-    }
-
-    return ch;
+    return NULL;
 }
 
 void ossl_quic_channel_free(QUIC_CHANNEL *ch)
