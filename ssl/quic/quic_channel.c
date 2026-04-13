@@ -500,9 +500,9 @@ QUIC_CHANNEL *ossl_quic_channel_alloc(const QUIC_CHANNEL_ARGS *args)
 
 err:
 #ifndef OPENSSL_NO_QLOG
-        OPENSSL_free(ch->qlog_title);
+    OPENSSL_free(ch->qlog_title);
 #endif
-        OPENSSL_free(ch);
+    OPENSSL_free(ch);
     return NULL;
 }
 
