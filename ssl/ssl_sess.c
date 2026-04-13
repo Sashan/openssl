@@ -931,8 +931,10 @@ int SSL_set_session(SSL *s, SSL_SESSION *session)
     if (sc == NULL)
         return 0;
 
+#ifndef OPENSSL_NO_QUIC
     if (IS_QUIC(s))
         return ossl_quic_set_session(s, session);
+#endif
 
     if (session != NULL && !SSL_SESSION_up_ref(session))
         return 0;
