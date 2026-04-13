@@ -1440,7 +1440,7 @@ static int create_dgram_pair(BIO **c_bio_p, BIO **s_bio_p)
 {
     BIO *c_bio, *s_bio;
     BIO_ADDR *localaddr = NULL;
-    struct in_addr ina = { htonl(0x7f000001) };
+    struct in_addr ina = { htonl(0x7f000001UL) };
     int bio_flags = 0;
     int ok;
 
@@ -1544,7 +1544,7 @@ done:
 static int init_client(SSL *c_ssl)
 {
     BIO_ADDR *peer_addr = NULL;
-    struct in_addr ina = { htonl(0x7f000001) };
+    struct in_addr ina = { htonl(0x7f000001UL) };
     int ok = 0;
 
     ok = SSL_set_tlsext_host_name(c_ssl, "localhost");
