@@ -194,7 +194,7 @@ static int destroy_connection(SSL *clientssl, SSL *serverssl)
 
 /*
  * Test QUIC connection using regular QUIC client and server methods.
- * No quic t-server is needed. Runs non blocking vaiant using busy-loops.
+ * No quic t-server is needed. Runs non blocking variant using busy-loops.
  */
 static int test_quic_conn(void)
 {
