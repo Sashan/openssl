@@ -428,6 +428,7 @@ end:
     SSL_SESSION_free(sess);
     SSL_free(serverssl);
     SSL_free(clientssl);
+    SSL_free(serverssl_listener);
     SSL_CTX_free(sctx);
     SSL_CTX_free(cctx);
 
