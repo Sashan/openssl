@@ -5997,7 +5997,7 @@ int ossl_quic_set_max_early_data(SSL *ssl, uint32_t max_early_data)
     return 0;
 }
 
-uint32_t ossl_quic_get_max_early_data(SSL *ssl)
+uint32_t ossl_quic_get_max_early_data(const SSL *ssl)
 {
     return 0;
 }
@@ -6007,7 +6007,7 @@ int ossl_quic_set_recv_max_early_data(SSL *ssl, uint32_t recv_max_early_data)
     return 0;
 }
 
-uint32_t ossl_quic_get_recv_max_early_data(SSL *ssl)
+uint32_t ossl_quic_get_recv_max_early_data(const SSL *ssl)
 {
     return 0;
 }
