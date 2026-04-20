@@ -4513,7 +4513,7 @@ static void quic_classify_stream(QUIC_CONNECTION *qc,
         *app_error_code = !is_write
             ? qs->peer_reset_stream_aec
             : qs->peer_stop_sending_aec;
-    } else if (is_write && ossl_quic_sstream_get_final_size(qs->sstream, &final_size)) {
+    } else if (is_write && qs->have_final_size) {
         /*
          * Stream has been finished. Stream reset takes precedence over this for
          * the write case as peer may not have received all data.
