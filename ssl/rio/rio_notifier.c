@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2026 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2024-2025 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -31,46 +31,64 @@ static int set_cloexec(int fd)
 #if defined(OPENSSL_SYS_WINDOWS)
 
 static CRYPTO_ONCE ensure_wsa_startup_once = CRYPTO_ONCE_STATIC_INIT;
+static CRYPTO_RWLOCK *wsa_lock;
+static int wsa_started;
+static int wsa_ref;
 
-#ifdef OSSL_RIO_NOTIFIER_TEST
-static int wsa_test_started;
-static int wsa_test_startup_count;
-#endif
+static void ossl_wsa_cleanup(void)
+{
+    if (wsa_started) {
+        wsa_started = 0;
+        WSACleanup();
+    }
+
+    CRYPTO_THREAD_lock_free(wsa_lock);
+    wsa_lock = NULL;
+}
 
 DEFINE_RUN_ONCE_STATIC(do_wsa_startup)
 {
     WORD versionreq = 0x0202; /* Version 2.2 */
     WSADATA wsadata;
 
-#ifdef OSSL_RIO_NOTIFIER_TEST
-    ++wsa_test_startup_count;
-#endif
-
-    if (WSAStartup(versionreq, &wsadata) != 0)
+    wsa_lock = CRYPTO_THREAD_lock_new();
+    if (wsa_lock == NULL)
         return 0;
 
-#ifdef OSSL_RIO_NOTIFIER_TEST
-    wsa_test_started = 1;
-#endif
+    if (WSAStartup(versionreq, &wsadata) != 0) {
+        CRYPTO_THREAD_lock_free(wsa_lock);
+        wsa_lock = NULL;
+        return 0;
+    }
+    wsa_started = 1;
+
     return 1;
 }
 
 static ossl_inline int ensure_wsa_startup(void)
 {
-    return RUN_ONCE(&ensure_wsa_startup_once, do_wsa_startup);
+    int rv, unused;
+
+    rv = RUN_ONCE(&ensure_wsa_startup_once, do_wsa_startup);
+    if (rv != 0)
+        CRYPTO_atomic_add(&wsa_ref, 1, &unused, wsa_lock);
+
+    return rv;
 }
 
-#ifdef OSSL_RIO_NOTIFIER_TEST
-int ossl_rio_notifier_wsa_test_get_started(void)
+static void wsa_done(void)
 {
-    return wsa_test_started;
-}
+    int ref;
 
-int ossl_rio_notifier_wsa_test_get_startup_count(void)
-{
-    return wsa_test_startup_count;
+    if (wsa_lock != NULL) {
+        CRYPTO_atomic_add(&wsa_ref, -1, &ref, wsa_lock);
+        if (ref == 0) {
+            ossl_wsa_cleanup();
+            ensure_wsa_startup_once = CRYPTO_ONCE_STATIC_INIT;
+            wsa_lock = NULL;
+        }
+    }
 }
-#endif
 
 #endif
 
@@ -171,6 +189,7 @@ int ossl_rio_notifier_init(RIO_NOTIFIER *nfy)
         ERR_raise_data(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR,
             "Cannot start Windows sockets");
 
+        wsa_done();
         return 0;
     }
 #endif
@@ -357,6 +376,9 @@ void ossl_rio_notifier_cleanup(RIO_NOTIFIER *nfy)
     BIO_closesocket(nfy->wfd);
     BIO_closesocket(nfy->rfd);
     nfy->rfd = nfy->wfd = -1;
+#if defined(OPENSSL_SYS_WINDOWS)
+    wsa_done();
+#endif
 }
 
 int ossl_rio_notifier_signal(RIO_NOTIFIER *nfy)
