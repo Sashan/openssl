@@ -399,6 +399,7 @@ DEF_FUNC(hf_accept_stream_none)
     SSL *conn, *stream;
 
     F_POP2(conn_name, flags);
+    REQUIRE_SSL(conn);
 
     if (!TEST_ptr(conn = RADIX_PROCESS_get_ssl(RP(), conn_name)))
         goto err;
@@ -510,6 +511,21 @@ DEF_FUNC(hf_conclude)
     REQUIRE_SSL(ssl);
 
     if (!TEST_true(SSL_stream_conclude(ssl, 0)))
+        goto err;
+
+    ok = 1;
+err:
+    return ok;
+}
+
+DEF_FUNC(hf_conclude_fail)
+{
+    int ok = 0;
+    SSL *ssl;
+
+    REQUIRE_SSL(ssl);
+
+    if (TEST_true(SSL_stream_conclude(ssl, 0)))
         goto err;
 
     ok = 1;
@@ -1069,8 +1085,10 @@ err:
         OP_PUSH_U64(1),                                      \
         OP_FUNC(hf_new_stream))
 
-#define OP_ACCEPT_STREAM_NONE(conn_name) \
-    (OP_SELECT_SSL(0, conn_name),        \
+#define OP_ACCEPT_STREAM_NONE(conn_name, flags) \
+    (OP_SELECT_SSL(0, conn_name),               \
+        OP_PUSH_PZ(#conn_name),                 \
+        OP_PUSH_U64(flags),                     \
         OP_FUNC(hf_accept_stream_none))
 
 #define OP_ACCEPT_CONN_WAIT(listener_name, conn_name, flags) \
@@ -1122,6 +1140,10 @@ err:
     (OP_SELECT_SSL(0, name), \
         OP_FUNC(hf_conclude))
 
+#define OP_CONCLUDE_FAIL(name) \
+    (OP_SELECT_SSL(0, name),   \
+        OP_FUNC(hf_conclude_fail))
+
 #define OP_READ_EXPECT(name, buf, buf_len) \
     (OP_SELECT_SSL(0, name),               \
         OP_PUSH_BUFP(buf, buf_len),        \
@@ -1130,7 +1152,7 @@ err:
 #define OP_READ_EXPECT_B(name, buf) \
     OP_READ_EXPECT(name, (buf), sizeof(buf))
 
-#define OP_READ_FAIL()       \
+#define OP_READ_FAIL(name)   \
     (OP_SELECT_SSL(0, name), \
         OP_PUSH_U64(0),      \
         OP_FUNC(hf_read_fail))
