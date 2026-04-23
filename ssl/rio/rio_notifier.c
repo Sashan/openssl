@@ -35,6 +35,11 @@ static CRYPTO_RWLOCK *wsa_lock;
 static int wsa_started;
 static int wsa_ref;
 
+#ifdef OSSL_RIO_NOTIFIER_TEST
+static int wsa_test_started;
+static int wsa_test_startup_count;
+#endif
+
 static void ossl_wsa_cleanup(void)
 {
     if (wsa_started) {
@@ -55,6 +60,10 @@ DEFINE_RUN_ONCE_STATIC(do_wsa_startup)
     if (wsa_lock == NULL)
         return 0;
 
+#ifdef OSSL_RIO_NOTIFIER_TEST
+    ++wsa_test_startup_count;
+#endif
+
     if (WSAStartup(versionreq, &wsadata) != 0) {
         CRYPTO_THREAD_lock_free(wsa_lock);
         wsa_lock = NULL;
@@ -62,6 +71,9 @@ DEFINE_RUN_ONCE_STATIC(do_wsa_startup)
     }
     wsa_started = 1;
 
+#ifdef OSSL_RIO_NOTIFIER_TEST
+    wsa_test_started = 1;
+#endif
     return 1;
 }
 
@@ -89,6 +101,18 @@ static void wsa_done(void)
         }
     }
 }
+
+#ifdef OSSL_RIO_NOTIFIER_TEST
+int ossl_rio_notifier_wsa_test_get_started(void)
+{
+    return wsa_test_started;
+}
+
+int ossl_rio_notifier_wsa_test_get_startup_count(void)
+{
+    return wsa_test_startup_count;
+}
+#endif
 
 #endif
 
