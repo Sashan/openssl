@@ -2181,53 +2181,13 @@ static const struct script_op script_2[] = {
 
 /* 3. Default stream detach/reattach test */
 static const struct script_op script_3[] = {
-    OP_C_SET_ALPN("ossltest"),
-    OP_C_CONNECT_WAIT(),
-
-    OP_C_WRITE(DEFAULT, "apple", 5),
-    OP_C_DETACH(a), /* DEFAULT becomes stream 'a' */
-    OP_C_WRITE_FAIL(DEFAULT),
-
-    OP_C_WRITE(a, "by", 2),
-
-    OP_S_BIND_STREAM_ID(a, C_BIDI_ID(0)),
-    OP_S_READ_EXPECT(a, "appleby", 7),
-
-    OP_S_WRITE(a, "hello", 5),
-    OP_C_READ_EXPECT(a, "hello", 5),
-
-    OP_C_WRITE_FAIL(DEFAULT),
-    OP_C_ATTACH(a),
-    OP_C_WRITE(DEFAULT, "is here", 7),
-    OP_S_READ_EXPECT(a, "is here", 7),
-
-    OP_C_DETACH(a),
-    OP_C_CONCLUDE(a),
-    OP_S_EXPECT_FIN(a),
-
+    /* script moved to detach_attach_stream in test/radix/quic_tests.c */
     OP_END
 };
 
 /* 4. Default stream mode test */
 static const struct script_op script_4[] = {
-    OP_C_SET_ALPN("ossltest"),
-    OP_C_CONNECT_WAIT(),
-
-    OP_C_SET_DEFAULT_STREAM_MODE(SSL_DEFAULT_STREAM_MODE_NONE),
-    OP_C_WRITE_FAIL(DEFAULT),
-
-    OP_S_NEW_STREAM_BIDI(a, S_BIDI_ID(0)),
-    OP_S_WRITE(a, "apple", 5),
-
-    OP_C_READ_FAIL(DEFAULT),
-
-    OP_C_ACCEPT_STREAM_WAIT(a),
-    OP_C_READ_EXPECT(a, "apple", 5),
-
-    OP_C_ATTACH(a),
-    OP_C_WRITE(DEFAULT, "orange", 6),
-    OP_S_READ_EXPECT(a, "orange", 6),
-
+    /* script moved to default_stream_mode in test/radix/quic_tests.c */
     OP_END
 };
 

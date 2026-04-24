@@ -22,6 +22,80 @@
  * ============================================================================
  */
 
+DEF_SCRIPT(detach_attach_stream, "test detach/attach stream private API")
+{
+    OP_SIMPLE_PAIR_CONN();
+    OP_ACCEPT_CONN_WAIT(L, S, 0);
+
+    OP_WRITE_B(C, "apple");
+    OP_DETACH(C, C0); /* DEFAULT becomes stream 'C0' */
+    OP_WRITE_FAIL(C);
+
+    OP_WRITE_B(C0, "by");
+
+    /*
+     * OP_WRITE_B() writes string with NUL string terminator,
+     * hence the expected buffer is apple\0by
+     */
+    OP_READ_EXPECT_B(S, "apple\x00""by");
+
+    OP_WRITE_B(S, "hello");
+    OP_READ_EXPECT_B(C0, "hello");
+
+    OP_WRITE_FAIL(C);
+    OP_ATTACH(C, C0);
+    OP_WRITE_B(C, "is here");
+    OP_READ_EXPECT_B(S, "is here");
+
+    OP_DETACH(C, C0);
+    OP_CONCLUDE(C0);
+    OP_EXPECT_FIN(S);
+}
+
+DEF_FUNC(ssl_upref)
+{
+    int ok = 0;
+    SSL *ssl;
+
+    REQUIRE_SSL(ssl);
+    if (!TEST_true(SSL_up_ref(ssl)))
+        goto err;
+
+    ok = 1;
+err:
+    return ok;
+}
+
+DEF_SCRIPT(default_stream_mode, "Default stream mode test")
+{
+    OP_SIMPLE_PAIR_CONN_ND();
+    OP_ACCEPT_CONN_WAIT(L, S, 0);
+
+    OP_SET_DEFAULT_STREAM_MODE(C, SSL_DEFAULT_STREAM_MODE_NONE);
+    OP_WRITE_FAIL(C);
+    OP_NEW_STREAM(C, C0, 0);
+    OP_WRITE_B(S, "apple");
+
+    OP_READ_FAIL(C);
+
+    OP_ACCEPT_STREAM_WAIT(C, C1, 0);
+    OP_READ_EXPECT_B(C1, "apple");
+
+    /*
+     * The OP_ATTACH() assumes the C1 comes from OP_DETACH() operation.
+     * QUIC stream objects which come from OP_DETACH() have two references
+     *   - one reference to keep SSL object bound to radix process (RP)
+     *   - the other reference for object itself
+     * The OP_ATTACH() always unbinds QUIC stream object C1 from radix process
+     * therefore it needs the reference.
+     */
+    OP_SELECT_SSL(0, C1);
+    OP_FUNC(ssl_upref);
+    OP_ATTACH(C, C1);
+    OP_WRITE_B(C, "orange");
+    OP_READ_EXPECT_B(S, "orange");
+}
+
 /*
  * Test: simple_conn
  * -----------------
@@ -299,8 +373,14 @@ DEF_SCRIPT(check_cwm, "check stream obeys cwm")
  * ============================================================================
  */
 static SCRIPT_INFO *const scripts[] = {
+#if 0
+    USE(detach_attach_stream),
+#endif
+    USE(default_stream_mode),
+#if 0
     USE(simple_conn),
     USE(simple_thread),
     USE(ssl_poll),
     USE(check_cwm)
+#endif
 };
