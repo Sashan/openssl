@@ -6034,26 +6034,3 @@ unlock:
 
     return session;
 }
-
-int ossl_quic_session_reused(const SSL *s)
-{
-    QCTX qctx;
-    int rv = 0;
-    SSL_CONNECTION *sc;
-
-    if (!expect_quic_c(s, &qctx))
-        return 0;
-
-    qctx_lock(&qctx);
-
-    if (qctx.qc->tls == NULL)
-        goto unlock;
-
-    sc = SSL_CONNECTION_FROM_SSL(qctx.qc->tls);
-    rv = sc->hit;
-
-unlock:
-    qctx_unlock(&qctx);
-
-    return rv;
-}
