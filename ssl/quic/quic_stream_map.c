@@ -451,7 +451,7 @@ int ossl_quic_stream_map_notify_totally_acked(QUIC_STREAM_MAP *qsm,
          * gets called.
          */
         qs->have_final_size = ossl_quic_sstream_get_final_size(qs->sstream,
-            &qs->final_size);
+            NULL);
 
         /* We no longer need a QUIC_SSTREAM in this state. */
         ossl_quic_sstream_free(qs->sstream);

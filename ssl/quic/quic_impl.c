@@ -4473,14 +4473,14 @@ static void quic_classify_stream(QUIC_CONNECTION *qc,
     uint64_t *app_error_code)
 {
     int local_init;
-    uint64_t final_size;
+    uint64_t scratch_pad; /* throw away value */
 
     local_init = (ossl_quic_stream_is_server_init(qs) == qc->as_server);
 
     if (app_error_code != NULL)
         *app_error_code = UINT64_MAX;
     else
-        app_error_code = &final_size; /* throw away value */
+        app_error_code = &scratch_pad;
 
     if (!ossl_quic_stream_is_bidi(qs) && local_init != is_write) {
         /*

@@ -316,7 +316,6 @@ struct quic_stream_st {
     /* Set to 1 if this is currently counted in the shutdown flush stream count. */
     unsigned int shutdown_flush : 1;
     unsigned int have_final_size : 1;
-    uint64_t final_size;
 };
 
 #define QUIC_STREAM_INITIATOR_CLIENT 0
