@@ -750,21 +750,28 @@ err:
 DEF_FUNC(hf_detach)
 {
     int ok = 0;
-    const char *conn_name, *stream_name;
+    const char *stream_name;
     SSL *conn, *stream;
 
-    F_POP2(conn_name, stream_name);
-    if (!TEST_ptr(conn = RADIX_PROCESS_get_ssl(RP(), conn_name)))
-        goto err;
+    REQUIRE_SSL(conn);
 
     if (!TEST_ptr(stream = ossl_quic_detach_stream(conn)))
         goto err;
 
+    F_POP(stream_name);
     if (!TEST_true(RADIX_PROCESS_set_ssl(RP(), stream_name, stream))) {
         SSL_free(stream);
         goto err;
     }
-
+    /*
+     * Obtain reference for RADIX_PROCESS_set_ssl()
+     * the OP_unbind() we do later in hf_attach()
+     * calls SSL_free().
+     */
+    if (!TEST_true(SSL_up_ref(stream))) {
+        SSL_free(stream);
+        goto err;
+    }
     ok = 1;
 err:
     return ok;
@@ -773,21 +780,26 @@ err:
 DEF_FUNC(hf_attach)
 {
     int ok = 0;
-    const char *conn_name, *stream_name;
+    const char *stream_name;
     SSL *conn, *stream;
 
-    F_POP2(conn_name, stream_name);
+    REQUIRE_SSL(conn);
 
-    if (!TEST_ptr(conn = RADIX_PROCESS_get_ssl(RP(), conn_name)))
-        goto err;
-
+    F_POP(stream_name);
     if (!TEST_ptr(stream = RADIX_PROCESS_get_ssl(RP(), stream_name)))
         goto err;
 
-    if (!TEST_true(ossl_quic_attach_stream(conn, stream)))
-        goto err;
+    /*
+     * unbind, calls SSL_free() on stream we've retreived via
+     * RADIX_PROCESS_get_ssl() above.
+     */
+    RADIX_PROCESS_set_obj(RP(), stream_name, NULL);
 
-    if (!TEST_true(RADIX_PROCESS_set_ssl(RP(), stream_name, NULL)))
+    /*
+     * stream has one reference now. And this is good, because
+     * _attach_stream() below fails when refcount on stream is not 1.
+     */
+    if (!TEST_true(ossl_quic_attach_stream(conn, stream)))
         goto err;
 
     ok = 1;
@@ -1178,7 +1190,7 @@ err:
 #define OP_READ_EXPECT_B(name, buf) \
     OP_READ_EXPECT(name, (buf), sizeof(buf))
 
-#define OP_READ_FAIL()       \
+#define OP_READ_FAIL(name)       \
     (OP_SELECT_SSL(0, name), \
         OP_PUSH_U64(0),      \
         OP_FUNC(hf_read_fail))
@@ -1222,7 +1234,7 @@ err:
 
 #define OP_ATTACH(conn_name, stream_name) \
     (OP_SELECT_SSL(0, conn_name),         \
-        OP_PUSH_PZ(stream_name),          \
+        OP_PUSH_PZ(#stream_name),          \
         OP_FUNC(hf_attach))
 
 #define OP_EXPECT_FIN(name)  \
