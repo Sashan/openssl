@@ -110,20 +110,20 @@ static int send_msg(SSL *s, const char *msg, int to_write, const char *print_msg
 
     done = 0;
     while (!done) {
-	rv = SSL_write(s, msg, to_write);
-	if (rv <= 0) {
-	    switch (SSL_get_error(s, rv)) {
-	    case SSL_ERROR_WANT_READ:
-	    case SSL_ERROR_WANT_WRITE:
-	    case SSL_ERROR_WANT_CONNECT:
-	    case SSL_ERROR_WANT_ACCEPT:
-		rv = 0;
-		break;
-	    default:
-		TEST_info("%s write failed\n", print_msg);
-		return 0;
-	    }
-	} else {
+        rv = SSL_write(s, msg, to_write);
+        if (rv <= 0) {
+            switch (SSL_get_error(s, rv)) {
+            case SSL_ERROR_WANT_READ:
+            case SSL_ERROR_WANT_WRITE:
+            case SSL_ERROR_WANT_CONNECT:
+            case SSL_ERROR_WANT_ACCEPT:
+                rv = 0;
+                break;
+            default:
+                TEST_info("%s write failed\n", print_msg);
+                return 0;
+            }
+        } else {
             done = 1;
         }
         /*
