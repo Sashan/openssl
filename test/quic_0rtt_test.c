@@ -49,6 +49,12 @@ static void set_client(SSL *s)
     client_ssl = s;
 }
 
+#if 0
+/*
+ * semd_msg() here allows partial writes. However those are not enabled in test,
+ * so test does not need the logic. The partial write variant is kept around here
+ * for reference.
+ */
 static int send_msg(SSL *s, const char *msg, int to_write, const char *print_msg)
 {
     int written, rv, done;
@@ -79,10 +85,60 @@ static int send_msg(SSL *s, const char *msg, int to_write, const char *print_msg
         } else {
             done = 1;
         }
+        /*
+         * Note there are at least two calls to handle_events() here:
+         *   we first get here after calling SSL_write() and find out
+         *   all date got sent, then loop continues...
+         *
+         *   in second iteration the condition weitten < to_write is
+         *   no longer true. loop skips SSL_write9) but performs done = 1
+         *   branch and then arrives here. to call handle_events() second time.
+         */
         handle_events();
     }
 
     return done;
+}
+#endif
+
+static int send_msg(SSL *s, const char *msg, int to_write, const char *print_msg)
+{
+    int rv, done;
+
+    if (to_write <= 0)
+        return 0;
+
+    done = 0;
+    while (!done) {
+	rv = SSL_write(s, msg, to_write);
+	if (rv <= 0) {
+	    switch (SSL_get_error(s, rv)) {
+	    case SSL_ERROR_WANT_READ:
+	    case SSL_ERROR_WANT_WRITE:
+	    case SSL_ERROR_WANT_CONNECT:
+	    case SSL_ERROR_WANT_ACCEPT:
+		rv = 0;
+		break;
+	    default:
+		TEST_info("%s write failed\n", print_msg);
+		return 0;
+	    }
+	} else {
+            done = 1;
+        }
+        /*
+         * Need to poke to handle_events() two times. Not doing so makes
+         * shutdown operation in caller later to fail. It then derails whole
+         * session resumption because instead of finishing shutdown we do
+         * SSL_free(). The exact failure mechanism is yet to be understood,
+         * making sure we call handle_events() two times here fixes/workarounds
+         * the problem. It's a magic!
+         */
+        handle_events();
+        handle_events();
+    }
+
+    return rv == to_write;
 }
 
 static int recv_msg(SSL *s, char *buf, int to_read, const char *print_msg)
@@ -175,7 +231,7 @@ static int destroy_connection(SSL *clientssl, SSL *serverssl)
                 done = 0;
                 break;
             default:
-                TEST_info("SSL_connect() failure");
+                TEST_info("SSL_shutdown() failure");
                 return 0;
             }
         }
