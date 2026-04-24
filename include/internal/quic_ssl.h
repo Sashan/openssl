@@ -188,10 +188,6 @@ int ossl_quic_set_max_early_data(SSL *ssl, uint32_t max_early_data);
 uint32_t ossl_quic_get_max_early_data(const SSL *ssl);
 int ossl_quic_set_recv_max_early_data(SSL *ssl, uint32_t recv_max_early_data);
 uint32_t ossl_quic_get_recv_max_early_data(const SSL *ssl);
-SSL_SESSION *ossl_quic_get_session(const SSL *ssl);
-SSL_SESSION *ossl_quic_get1_session(const SSL *ssl);
-int ossl_quic_set_session(SSL *ssl, SSL_SESSION *session);
-int ossl_quic_session_reused(const SSL *s);
 
 #endif
 

@@ -2521,6 +2521,9 @@ int SSL_read_early_data(SSL *s, void *buf, size_t num, size_t *readbytes)
         return ossl_quic_read_early_data(s, buf, num, readbytes);
 #endif
 
+    if (ssl_reset_error_state(sc) == 0)
+        return 0;
+
     if (!sc->server) {
         ERR_raise(ERR_LIB_SSL, ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED);
         sc->statem.error_state = ERROR_STATE_SSL;
@@ -6332,11 +6335,6 @@ int SSL_session_reused(const SSL *s)
 
     if (sc == NULL)
         return 0;
-
-#ifndef OPENSSL_NO_QUIC
-    if (IS_QUIC(s))
-        ossl_quic_session_reused(s);
-#endif
 
     return sc->hit;
 }

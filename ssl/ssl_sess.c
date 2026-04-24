@@ -70,11 +70,6 @@ SSL_SESSION *SSL_get_session(const SSL *ssl)
     if (sc == NULL)
         return NULL;
 
-#ifndef OPENSSL_NO_QUIC
-    if (IS_QUIC(ssl))
-        return ossl_quic_get_session(ssl);
-#endif
-
     return sc->session;
 }
 
@@ -82,11 +77,6 @@ SSL_SESSION *SSL_get1_session(SSL *ssl)
 /* variant of SSL_get_session: caller really gets something */
 {
     SSL_SESSION *sess;
-
-#ifndef OPENSSL_NO_QUIC
-    if (IS_QUIC(ssl))
-        return ossl_quic_get1_session(ssl);
-#endif
 
     /*
      * Need to lock this all up rather than just use CRYPTO_add so that
@@ -930,11 +920,6 @@ int SSL_set_session(SSL *s, SSL_SESSION *session)
 
     if (sc == NULL)
         return 0;
-
-#ifndef OPENSSL_NO_QUIC
-    if (IS_QUIC(s))
-        return ossl_quic_set_session(s, session);
-#endif
 
     if (session != NULL && !SSL_SESSION_up_ref(session))
         return 0;

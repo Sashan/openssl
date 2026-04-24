@@ -6035,52 +6035,6 @@ unlock:
     return session;
 }
 
-SSL_SESSION *ossl_quic_get1_session(const SSL *s)
-{
-    QCTX qctx;
-    SSL_SESSION *session = NULL;
-    SSL_CONNECTION *sc;
-
-    if (!expect_quic_c(s, &qctx))
-        return NULL;
-
-    qctx_lock(&qctx);
-
-    if (qctx.qc->tls == NULL)
-        goto unlock;
-
-    sc = SSL_CONNECTION_FROM_SSL(qctx.qc->tls);
-    session = sc->session;
-    if (session == NULL || SSL_SESSION_up_ref(session) == 0)
-        session = NULL;
-
-unlock:
-    qctx_unlock(&qctx);
-
-    return session;
-}
-
-int ossl_quic_set_session(SSL *s, SSL_SESSION *session)
-{
-    QCTX qctx;
-    int rv = 0;
-
-    if (!expect_quic_c(s, &qctx))
-        return 0;
-
-    qctx_lock(&qctx);
-
-    if (qctx.qc->tls == NULL)
-        goto unlock;
-
-    rv = SSL_set_session(qctx.qc->tls, session);
-
-unlock:
-    qctx_unlock(&qctx);
-
-    return rv;
-}
-
 int ossl_quic_session_reused(const SSL *s)
 {
     QCTX qctx;
