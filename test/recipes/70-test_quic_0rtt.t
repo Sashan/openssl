@@ -19,7 +19,7 @@ plan skip_all => "QUIC protocol is not supported by this OpenSSL build"
 plan tests => 1;
 
 #
-# note we might need to add covergage for qlog
+# note we might need to add coverage for qlog
 #
 
 ok(run(test(["quic_0rtt_test",
