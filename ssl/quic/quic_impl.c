@@ -6011,26 +6011,3 @@ uint32_t ossl_quic_get_recv_max_early_data(const SSL *ssl)
 {
     return 0;
 }
-
-SSL_SESSION *ossl_quic_get_session(const SSL *s)
-{
-    QCTX qctx;
-    SSL_SESSION *session = NULL;
-    SSL_CONNECTION *sc;
-
-    if (!expect_quic_c(s, &qctx))
-        return NULL;
-
-    qctx_lock(&qctx);
-
-    if (qctx.qc->tls == NULL)
-        goto unlock;
-
-    sc = SSL_CONNECTION_FROM_SSL(qctx.qc->tls);
-    session = sc->session;
-
-unlock:
-    qctx_unlock(&qctx);
-
-    return session;
-}
