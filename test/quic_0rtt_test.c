@@ -109,6 +109,7 @@ static int send_msg(SSL *s, const char *msg, int to_write, const char *print_msg
         return 0;
 
     done = 0;
+    rv = 0;
     while (!done) {
         rv = SSL_write(s, msg, to_write);
         if (rv <= 0) {
