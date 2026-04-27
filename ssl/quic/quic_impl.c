@@ -6011,3 +6011,15 @@ uint32_t ossl_quic_get_recv_max_early_data(const SSL *ssl)
 {
     return 0;
 }
+
+void ossl_quic_update_params(SSL *s)
+{
+    QCTX ctx;
+
+    if (!expect_quic_conn_only(s, &ctx))
+        return;
+
+    qctx_lock(&ctx);
+    ossl_quic_update_parms_from_session(ctx.qc->ch);
+    qctx_unlock(&ctx);
+}

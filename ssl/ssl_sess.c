@@ -938,6 +938,8 @@ int SSL_set_session(SSL *s, SSL_SESSION *session)
     SSL_SESSION_free(sc->session);
     sc->session = session;
 
+    ossl_quic_update_params(s);
+
     return 1;
 }
 
