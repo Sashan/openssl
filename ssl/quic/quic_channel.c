@@ -452,7 +452,7 @@ QUIC_CHANNEL *ossl_quic_channel_alloc(const QUIC_CHANNEL_ARGS *args)
     if (ch->use_qlog && args->qlog_title != NULL) {
         if ((ch->qlog_title = OPENSSL_strdup(args->qlog_title)) == NULL) {
             OPENSSL_free(ch);
-            return NULL;
+            goto fail;
         }
     }
 #endif
@@ -473,10 +473,18 @@ QUIC_CHANNEL *ossl_quic_channel_alloc(const QUIC_CHANNEL_ARGS *args)
     if (!ossl_quic_rxfc_init(&ch->conn_rxfc, NULL,
             ch->tx_init_max_data,
             DEFAULT_CONN_RXFC_MAX_WND_MUL * ch->tx_init_max_data,
-            get_time, ch))
-        return NULL;
+            get_time, ch)) {
+        goto fail;
+    }
 
     return ch;
+
+fail:
+#ifndef OPENSSL_NO_QLOG
+    OPENSSL_free(ch->qlog_title);
+#endif
+    OPENSSL_free(ch);
+    return NULL;
 }
 
 void ossl_quic_channel_free(QUIC_CHANNEL *ch)
