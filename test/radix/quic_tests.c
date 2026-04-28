@@ -121,10 +121,18 @@ DEF_SCRIPT(multi_stream, "multi stream test")
     OP_SET_INCOMING_STREAM_POLICY(C, SSL_INCOMING_STREAM_POLICY_REJECT, 42 /* application error code */);
     OP_NEW_STREAM(S, S5, 0 /* bidirectional stream */);
     OP_WRITE_B(S5, "unseen");
+    /*
+     * The client `C` uses a reject stream policy. The conclude operation
+     * is doomed to fail because server stream object `SS` does
+     * not represent working//established stream.
+     */
     OP_CONCLUDE_FAIL(S5);
     OP_ACCEPT_STREAM_NONE(C, 0);
     OP_SELECT_SSL(0, S);
     OP_SELECT_SSL(1, S5);
+    /*
+     * Stream S6 is rejected because of reject policy on client side.
+     */
     OP_FUNC(check_rejected);
 
     OP_SET_INCOMING_STREAM_POLICY(C, SSL_INCOMING_STREAM_POLICY_AUTO, 0 /* app. error code */);
@@ -134,6 +142,14 @@ DEF_SCRIPT(multi_stream, "multi stream test")
     OP_ACCEPT_STREAM_NONE(C, 0);
     OP_SELECT_SSL(0, S);
     OP_SELECT_SSL(1, S6);
+    /*
+     * Remember the client (`C`) and server `C` got created by
+     * OP_SIMPLE_PAIR_CON() which creates QUIC connection objects switched to
+     * default (implicit) stream mode (see SSL_set_default_stream_mode(3ossl)).
+     * The stream policy on client `C` is AUTO now which in combination with
+     * default stream mode makes `C` to reject incoming stream `S6`
+     * (see SSL_set_incoming_stream_policy(3ossl) for details).
+     */
     OP_FUNC(check_rejected);
 }
 
