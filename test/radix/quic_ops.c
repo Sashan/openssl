@@ -525,7 +525,7 @@ DEF_FUNC(hf_conclude_fail)
 
     REQUIRE_SSL(ssl);
 
-    if (TEST_true(SSL_stream_conclude(ssl, 0)))
+    if (!TEST_false(SSL_stream_conclude(ssl, 0)))
         goto err;
 
     ok = 1;
