@@ -510,7 +510,22 @@ DEF_FUNC(hf_conclude)
 
     REQUIRE_SSL(ssl);
 
-    if (!TEST_true(SSL_stream_conclude(ssl, 0))) {
+    if (!TEST_true(SSL_stream_conclude(ssl, 0)))
+        goto err;
+
+    ok = 1;
+err:
+    return ok;
+}
+
+DEF_FUNC(hf_conclude_fail)
+{
+    int ok = 0;
+    SSL *ssl;
+
+    REQUIRE_SSL(ssl);
+
+    if (!TEST_false(SSL_stream_conclude(ssl, 0))) {
         /*
          * Here we consider situation when talking to
          * remote peer which rejects all incoming streams
@@ -537,21 +552,6 @@ DEF_FUNC(hf_conclude)
         F_SPIN_AGAIN();
         goto err;
     }
-
-    ok = 1;
-err:
-    return ok;
-}
-
-DEF_FUNC(hf_conclude_fail)
-{
-    int ok = 0;
-    SSL *ssl;
-
-    REQUIRE_SSL(ssl);
-
-    if (!TEST_false(SSL_stream_conclude(ssl, 0)))
-        goto err;
 
     ok = 1;
 err:
