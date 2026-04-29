@@ -550,7 +550,6 @@ DEF_FUNC(hf_conclude_fail)
          * see TERP_execute() for details.
          */
         F_SPIN_AGAIN();
-        goto err;
     }
 
     ok = 1;
