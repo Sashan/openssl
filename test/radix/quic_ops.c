@@ -536,7 +536,7 @@ DEF_FUNC(hf_conclude_fail)
          * The remote peer gets notified about new stream
          * with the first SSL_write(3ossl) to stream object.
          * Remote peer receives the first STREAM frame and
-         * checcks the stream policy, if policy orders
+         * checks the stream policy, if policy orders
          * to reject the stream the remote peer sends
          * STREAM_RESET frame back, so local end here
          * can move send stream state from QUIC_SSTREAM_STATE_READY
