@@ -49,58 +49,6 @@ static void set_client(SSL *s)
     client_ssl = s;
 }
 
-#if 0
-/*
- * semd_msg() here allows partial writes. However those are not enabled in test,
- * so test does not need the logic. The partial write variant is kept around here
- * for reference.
- */
-static int send_msg(SSL *s, const char *msg, int to_write, const char *print_msg)
-{
-    int written, rv, done;
-
-    if (to_write <= 0)
-        return 0;
-
-    done = 0;
-    written = 0;
-    while (!done) {
-        if (written < to_write) {
-            to_write = to_write - written;
-            rv = SSL_write(s, &msg[written], to_write);
-            if (rv <= 0) {
-                switch (SSL_get_error(s, rv)) {
-                case SSL_ERROR_WANT_READ:
-                case SSL_ERROR_WANT_WRITE:
-                case SSL_ERROR_WANT_CONNECT:
-                case SSL_ERROR_WANT_ACCEPT:
-                    rv = 0;
-                    break;
-                default:
-                    TEST_info("%s write failed at %d\n", print_msg, written);
-                    return 0;
-                }
-            }
-            written += rv;
-        } else {
-            done = 1;
-        }
-        /*
-         * Note there are at least two calls to handle_events() here:
-         *   we first get here after calling SSL_write() and find out
-         *   all date got sent, then loop continues...
-         *
-         *   in second iteration the condition weitten < to_write is
-         *   no longer true. loop skips SSL_write9) but performs done = 1
-         *   branch and then arrives here. to call handle_events() second time.
-         */
-        handle_events();
-    }
-
-    return done;
-}
-#endif
-
 static int send_msg(SSL *s, const char *msg, int to_write, const char *print_msg)
 {
     int rv, done;
