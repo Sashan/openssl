@@ -77,8 +77,8 @@ static int send_msg(SSL *s, const char *msg, int to_write, const char *print_msg
         }
         /*
          * Need to poke to handle_events() two times. Not doing so makes
-         * shutdown operation in caller later to fail. It then derails whole
-         * session resumption because instead of finishing shutdown we do
+         * shutdown operation in caller later to fail. It then makes session
+         * resumption to fail, because instead of finishing shutdown we do
          * SSL_free(). The exact failure mechanism is yet to be understood,
          * making sure we call handle_events() two times here fixes/workarounds
          * the problem. It's a magic!
