@@ -4360,7 +4360,7 @@ uint64_t ossl_quic_channel_get_active_conn_id_limit_peer_request(const QUIC_CHAN
  *
  * We will need to revisit the code which handles session and
  * parameters. Server may want to override parameters from session because the
- * session might be resumed on different network path.  So we may wan to
+ * session might be resumed on different network path.  So we may want to
  * re-think which parameters are kept along the ssession.
  */
 void ossl_quic_update_parms_from_session(QUIC_CHANNEL *ch)
