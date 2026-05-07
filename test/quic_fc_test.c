@@ -392,7 +392,7 @@ static const struct rx_test_op rx_script_2[] = {
     RX_OP_CHECK_RWM_STREAM(1, 0),
 
     RX_OP_RX(1, 42, 0),
-    RX_OP_RX(1, 42, 0) /* monotonic; equal or lower values ignored */,
+    RX_OP_RX(1, 42, 0), /* monotonic; equal or lower values ignored */
     RX_OP_RX(1, 35, 0),
     RX_OP_CHECK_CWM_CONN(INIT_WINDOW_SIZE),
     RX_OP_CHECK_CWM_STREAM(0, INIT_S_WINDOW_SIZE),
@@ -456,7 +456,7 @@ static const struct rx_test_op rx_script_2[] = {
     RX_OP_CHECK_ERROR_STREAM(0, OSSL_QUIC_ERR_FLOW_CONTROL_ERROR, 0),
     RX_OP_CHECK_ERROR_STREAM(0, OSSL_QUIC_ERR_FLOW_CONTROL_ERROR, 1),
     RX_OP_CHECK_ERROR_STREAM(0, 0, 0),
-    RX_OP_CHECK_ERROR_CONN(0, 0) /* doesn't affect conn */,
+    RX_OP_CHECK_ERROR_CONN(0, 0), /* doesn't affect conn */
 
     /* Test exceeding limit at connection level. */
     RX_OP_RX(0, INIT_WINDOW_SIZE * 2, 0),
