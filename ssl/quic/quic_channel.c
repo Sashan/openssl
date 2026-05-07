@@ -4358,7 +4358,7 @@ uint64_t ossl_quic_channel_get_active_conn_id_limit_peer_request(const QUIC_CHAN
  * Function here is called on behalf of SSL_set_session() which
  * populates QUIC protocol parameters from session.
  *
- & We will need to revisit the code which handlers session and
+ * We will need to revisit the code which handles session and
  * parameters. Server may want to override parameters from session because the
  * session might be resumed on different network path.  So we may wan to
  * re-think which parameters are kept along the ssession.
