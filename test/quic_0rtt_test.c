@@ -27,6 +27,7 @@
 static char *certfile, *keyfile;
 
 static OSSL_LIB_CTX *libctx = NULL;
+static OSSL_PROVIDER *defctxnull = NULL;
 
 #define MESSAGE "Hello There!"
 #define MESSAGE_LEN (sizeof(MESSAGE) - 1)
@@ -442,12 +443,14 @@ end:
 
 int setup_tests(void)
 {
-#if defined(_PUT_MODEL_)
+#if defined(OPENSSL_NO_QUIC)
     return TEST_skip("QUIC is not supported by this build");
 #else
     libctx = OSSL_LIB_CTX_new();
     if (!TEST_ptr(libctx))
         return 0;
+
+    defctxnull = OSSL_PROVIDER_load(NULL, "null");
 
     if (!test_skip_common_options()) {
         TEST_error("Error parsing test options\n");
@@ -467,5 +470,6 @@ int setup_tests(void)
 
 void cleanup_tests(void)
 {
+    OSSL_PROVIDER_unload(defctxnull);
     OSSL_LIB_CTX_free(libctx);
 }
