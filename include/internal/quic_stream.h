@@ -328,9 +328,6 @@ QUIC_RSTREAM *ossl_quic_rstream_new(QUIC_RXFC *rxfc,
 void ossl_quic_rstream_free(QUIC_RSTREAM *qrs);
 
 /*
- * Adds received stream frame data to `qrs`. The `pkt_wrap` refcount is
- * incremented if the `data` is queued directly without copying.
- * It can be NULL for unit-testing purposes, i.e. if `data` is static or
  * Adds received stream frame data to `qrs`. `pkt` must be the packet
  * carrying `data`; its refcount is incremented if the data is kept
  * referenced on the packet rather than copied. `pkt` and `data` can
